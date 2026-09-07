@@ -97,6 +97,13 @@ say "composer install (to potrwa — foundation ma ~670 pakietow)"
 # scripts installs the module and silently never registers it: no commands, no
 # routes, no migrations, and no error anywhere saying so. Run discovery
 # explicitly rather than trusting the install to have done it.
+# Upstream derives index and foreign-key names from table plus columns, and 112
+# of them exceed the 64-character identifier limit of MySQL/MariaDB. Without
+# this, `migrate` fails PARTWAY THROUGH, leaving a half-created schema.
+# Found by the release gate on the very database the installer provisions.
+say "Skracam za dlugie nazwy indeksow (limit 64 znakow w MySQL/MariaDB)"
+"$REPO_ROOT/bin/patch-foundation-index-names.sh" "$TARGET"
+
 say "package:discover"
 ( cd "$TARGET" && php artisan package:discover --ansi )
 
@@ -120,4 +127,9 @@ echo "    cd $TARGET"
 echo "    php artisan migrate"
 echo "    php artisan poland:verify-rates"
 echo "    php artisan poland:rate-provenance --todo   # co musi potwierdzic ksiegowy"
+echo
+echo "  UWAGA: POLAND_REQUIRE_OFFICIAL_RATES jest ustawione na true (fail closed)."
+echo "  Rozliczenia sa ZABLOKOWANE do czasu potwierdzenia stawek przez ksiegowego."
+echo "  Aby zobaczyc wyliczenia orientacyjne przed weryfikacja, ustaw je swiadomie"
+echo "  na false w .env - kazdy ekran bedzie wtedy oznaczony NOT VERIFIED."
 echo "    php artisan poland:report $(date -d 'last month' +%Y-%m 2>/dev/null || date +%Y-%m) --sales=48500"

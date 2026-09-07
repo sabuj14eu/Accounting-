@@ -76,6 +76,23 @@ text", and a PDF statement is not zero transactions. `docs/AUTOMATION.md` has
 the detail, including what is built and what still needs a network the build
 environment could not reach.
 
+## Release gate
+
+```bash
+bin/release-gate.sh /srv/accounting/foundation
+```
+
+Runs all fourteen release checks and exits non-zero if any fails. Checks that
+need a human (the real-data pilot) are reported as `REQUIRES HUMAN` rather than
+passing silently. The measured results are recorded in
+`docs/RELEASE_RECORD_2026-09-07.md` — **309 tests, 874 assertions, 0 failures**,
+PHP 8.5.0, Laravel 13.29.0, MariaDB 10.11.14, 295 migrations, and a real backup
+restored and compared byte-for-byte.
+
+Three milestones, kept separate: **LIVE APPLICATION** is reached.
+**PRODUCTION ACCOUNTING** is not — it needs official rate verification and the
+real-data pilot. **AUTOMATED FILING** is not, and is deliberately disabled.
+
 ## Audit
 
 `docs/PRODUCTION_AUDIT_2026-09-07.md` is the standing audit record: every

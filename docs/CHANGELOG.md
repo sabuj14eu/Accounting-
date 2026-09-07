@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-09-07 (sixth) — final release gate
+
+Recorded as `docs/RELEASE_RECORD_2026-09-07.md` with measured numbers.
+
+### The blocker the gate found
+The Liberu ERP could not migrate onto MySQL or MariaDB at all: 112 index and
+foreign-key names derived by Laravel exceed the 64-character identifier limit,
+so `migrate` failed partway through and left a half-created schema. The
+one-command installer provisions MariaDB, so the deploy command previously given
+would have failed. Found only because this gate insisted on a real database
+instead of the SQLite used in development.
+
+Fixed by `bin/patch-foundation-index-names.sh` — deterministic, idempotent,
+lossless, with a `--check` mode wired into CI and the installer. Upstream bug;
+must be re-applied after every foundation upgrade, which the installer does.
+After the fix all 295 migrations apply.
+
+### Changed
+- Installer now writes `POLAND_REQUIRE_OFFICIAL_RATES=true`. The previous
+  `false` made the app immediately usable and was the wrong default: the safe
+  value must be the default and relaxing it a conscious act.
+- Caveat reason codes are now stable identifiers
+  (`OFFICIAL_RATES_NOT_VERIFIED`, `KSEF_TRANSPORT_UNAVAILABLE`,
+  `BANK_STATEMENT_MISSING`, `POSSIBLE_DUPLICATE_TRANSACTION`, …) and each names
+  who resolves it — taxpayer, operator or accountant.
+- The restore drill's scratch database needed a grant the least-privilege
+  accounting user did not have. Rather than widening access, the installer now
+  grants a dedicated `<db>_drill` namespace; the drill fails loudly without it.
+
+### Added
+- `bin/release-gate.sh` — all fourteen checks, non-zero on failure, `REQUIRES
+  HUMAN` for the real-data pilot.
+- `ReleaseGateTest` — 20 tests, one per numbered gate.
+- Drill extended to 17 tables plus content-level comparison: KSeF XML compared
+  by SHA-256 on both sides, report checksums, reconciliation decisions and
+  settlement amounts.
+
+### Measured
+309 tests, 874 assertions, 0 failures, 0 errors, 0 skipped, on PHP 8.4.19 and
+8.5.0. Laravel 13.29.0, MariaDB 10.11.14, 295 migrations. Backup restored and
+verified: 27 checks.
+
+### Milestones
+LIVE APPLICATION reached. PRODUCTION ACCOUNTING not reached — needs rate
+verification and the real-data pilot. AUTOMATED FILING not reached, deliberately.
+
 ## 2026-09-07 (fifth) — production audit response
 
 Recorded in full as `docs/PRODUCTION_AUDIT_2026-09-07.md`. Four real gaps closed;

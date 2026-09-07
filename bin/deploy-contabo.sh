@@ -122,10 +122,14 @@ CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4
 CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
 ALTER USER '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
 GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1';
+-- A dedicated scratch namespace for the restore drill. Without it the drill
+-- cannot prove a backup restores, and an unrestored backup is a belief rather
+-- than a backup. Still scoped: nothing here reaches any other schema.
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\_drill\`.* TO '$DB_USER'@'127.0.0.1';
 FLUSH PRIVILEGES;
 SQL
-# Grants are scoped to this database only. The accounting user cannot read the
-# trading schema even if a query tried.
+# Grants are scoped to this database and its restore-drill scratch namespace.
+# The accounting user cannot read the trading schema even if a query tried.
 info "baza $DB_NAME, użytkownik $DB_USER (uprawnienia wyłącznie do tej bazy)"
 
 # ---------------------------------------------------------------------------
@@ -165,11 +169,21 @@ set_env REDIS_CACHE_DB "$REDIS_CACHE_DB"
 set_env QUEUE_CONNECTION redis
 set_env CACHE_STORE redis
 set_env SESSION_DRIVER redis
-# Rates are not yet confirmed against the issuing authority. Left FALSE so the
-# application is usable and every screen carries the NOT VERIFIED banner.
-# Flip to true the moment your accountant has verified them — from that point
-# the engine refuses to settle on anything unverified.
-set_env POLAND_REQUIRE_OFFICIAL_RATES false
+# FAIL CLOSED. Production refuses to settle on rates nobody has confirmed
+# against the issuing authority. This is the release gate's requirement: the
+# default must be the safe one, and relaxing it must be a conscious act by an
+# operator who has read why.
+#
+# To see orientation-only figures before verification, set this to false by
+# hand — every screen then carries NOT VERIFIED and no figure may be filed.
+set_env POLAND_REQUIRE_OFFICIAL_RATES true
+
+# KSeF transport stays off until a client is implemented against the current
+# official API and live-tested. Production may never select the fake transport;
+# TransportGate throws rather than letting a lost connection read as
+# "no invoices found".
+set_env KSEF_TRANSPORT_ENABLED false
+set_env KSEF_TRANSPORT disabled
 chown "$APP_USER:$APP_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
 cd "$APP_ROOT/foundation"
@@ -347,14 +361,19 @@ cat <<SUMMARY
     Nic z systemu tradingowego nie zostało zmienione ani użyte.
 
   NASTĘPNY KROK — WYMAGANY PRZED PŁACENIEM PODATKU
-    Stawki nie są jeszcze potwierdzone w źródłach urzędowych. Każdy ekran
-    pokazuje ostrzeżenie "NOT VERIFIED — DO NOT USE FOR REAL TAX PAYMENT".
+    POLAND_REQUIRE_OFFICIAL_RATES=true — rozliczenia są ZABLOKOWANE do czasu
+    potwierdzenia stawek w źródłach urzędowych. To jest zamierzone: system
+    odmawia zamiast podać kwotę, której nikt nie sprawdził.
 
       cd $APP_ROOT/foundation
       $PHP_BIN artisan poland:rate-provenance --todo
 
-    Po potwierdzeniu przez księgowego ustaw w $ENV_FILE:
-      POLAND_REQUIRE_OFFICIAL_RATES=true
+    Po potwierdzeniu przez księgowego ustaw status "official" w
+    config/rates/*.php i uruchom ponownie poland:rate-provenance.
+
+    Aby przed weryfikacją zobaczyć wyliczenia ORIENTACYJNE, ustaw świadomie
+    POLAND_REQUIRE_OFFICIAL_RATES=false w $ENV_FILE — każdy ekran będzie
+    wtedy oznaczony NOT VERIFIED i żadna kwota nie nadaje się do zapłaty.
 
   PRZYDATNE
     $PHP_BIN artisan poland:verify-rates

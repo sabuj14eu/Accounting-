@@ -117,7 +117,7 @@ final class CertaintyTest extends TestCase
         // them, and BLOCKED outranks everything the taxpayer can act on.
         self::assertSame(DataCertainty::Blocked, $report->certainty);
         self::assertCount(1, $report->blocking());
-        self::assertSame('rates_unverified', $report->blocking()[0]->code);
+        self::assertSame(Caveat::OFFICIAL_RATES_NOT_VERIFIED, $report->blocking()[0]->code);
     }
 
     public function test_the_six_states_are_all_distinct(): void
@@ -193,7 +193,7 @@ final class CertaintyTest extends TestCase
         ]);
 
         self::assertCount(1, $report->userActionable());
-        self::assertSame('bank_statement_missing', $report->userActionable()[0]->code);
+        self::assertSame(Caveat::BANK_STATEMENT_MISSING, $report->userActionable()[0]->code);
         self::assertCount(2, $report->systemConditions());
         self::assertCount(3, $report->blocking());
     }

@@ -99,6 +99,9 @@ jobs:
           mkdir -p database && touch database/database.sqlite
           php artisan key:generate --force
 
+      - name: Index names fit the database identifier limit
+        run: app/bin/patch-foundation-index-names.sh "$GITHUB_WORKSPACE/foundation" --check
+
       - name: Migrate
         working-directory: foundation
         run: php artisan migrate --force
