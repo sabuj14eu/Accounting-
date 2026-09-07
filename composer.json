@@ -1,0 +1,36 @@
+{
+    "name": "signalmesh/accounting",
+    "description": "Polish JDG accounting application (account.signalmesh.dev), built on the Liberu accounting ERP. Completely separate from the SignalMesh trading platform.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "modules/poland",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "scripts": {
+        "test": "cd modules/poland && composer install --no-interaction --quiet && vendor/bin/phpunit",
+        "isolation": "bin/check-isolation.sh",
+        "report": "modules/poland/bin/pl-tax",
+        "check": [
+            "@isolation",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the Poland tax engine test suite.",
+        "isolation": "Fail if a dependency on the trading platform has appeared.",
+        "report": "Run the standalone monthly ZUS/VAT/PIT report.",
+        "check": "Everything that must pass before a commit."
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

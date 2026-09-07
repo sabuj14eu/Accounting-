@@ -1,0 +1,26 @@
+# Never commit secrets or per-environment configuration.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+ksef-*.xml
+auth-token*
+
+# Dependencies and build output
+/vendor/
+/node_modules/
+modules/*/vendor/
+modules/*/.phpunit.cache/
+modules/*/.phpunit.result.cache
+
+# The installed foundation application (installed by bin/install-foundation.sh)
+/foundation/
+
+# Local artefacts
+*.sqlite
+*.sqlite-journal
+/storage/
+.DS_Store

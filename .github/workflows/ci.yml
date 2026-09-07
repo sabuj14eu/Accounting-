@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  isolation:
+    name: Isolation from trading
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # This job exists to fail loudly. The isolation requirement is violated by
+      # ADDING something, at any time, in any file — so it is checked on every
+      # push rather than reviewed once and trusted afterwards.
+      - run: bin/check-isolation.sh
+
+  tests:
+    name: Poland tax engine (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl, dom, xml
+          coverage: none
+      - name: Install
+        working-directory: modules/poland
+        run: composer install --no-interaction --prefer-dist
+      - name: Test
+        working-directory: modules/poland
+        run: vendor/bin/phpunit
+      - name: Lint every source file
+        working-directory: modules/poland
+        run: find src config bin database -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+      - name: Standalone CLI runs without a framework
+        working-directory: modules/poland
+        run: ./bin/pl-tax --profile=examples/profile.json --sales-file=examples/sales-2026.json --period=2026-08 --brief
+
+  rate-coverage:
+    name: Rate tables still cover the coming months
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      # Rate tables run out. This is the check that says so before a taxpayer
+      # hits a month the software cannot price.
+      - name: Check coverage six months ahead
+        working-directory: modules/poland
+        run: |
+          php -r '
+            require "autoload.php";
+            $rates = Poland\Rates\RateRepository::default();
+            $period = Poland\Domain\Period::of((int) date("Y"), (int) date("n"));
+            $failed = false;
+            for ($i = 0; $i < 6; $i++) {
+                $coverage = $rates->coverage($period);
+                printf("%s %s%s\n", $period->toString(), $coverage["ok"] ? "OK" : "BRAK",
+                    $coverage["ok"] ? "" : " -> " . implode(", ", $coverage["missing"]));
+                $failed = $failed || ! $coverage["ok"];
+                $period = $period->next();
+            }
+            exit($failed ? 1 : 0);
+          '

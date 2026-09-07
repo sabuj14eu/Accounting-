@@ -1,0 +1,26 @@
+# Accounting queue worker.
+#
+# Its own unit, its own Redis database index, its own restart policy. A crash
+# loop here restarts this worker and nothing else.
+
+[Unit]
+Description=Accounting queue worker (account.signalmesh.dev)
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=accounting
+Group=accounting
+WorkingDirectory=/srv/accounting/foundation
+ExecStart=/usr/bin/php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/accounting/foundation/storage
+
+[Install]
+WantedBy=multi-user.target

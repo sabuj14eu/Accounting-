@@ -1,0 +1,195 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * pl-tax — monthly ZUS / VAT / PIT report for a Polish sole trader.
+ *
+ * Framework-free by design: it needs nothing but PHP and this package, so the
+ * taxpayer can get an answer from a cash-register total without the ERP, the
+ * database or the queue being up. The same engine backs the web application.
+ */
+
+require_once dirname(__DIR__).'/autoload.php';
+
+use Poland\Domain\FiscalSalesReport;
+use Poland\Domain\Ledger;
+use Poland\Domain\Money;
+use Poland\Domain\Period;
+use Poland\Domain\PurchaseRegister;
+use Poland\Reporting\SettlementEngine;
+use Poland\Reporting\TextReportRenderer;
+use Poland\Support\ProfileFactory;
+
+const USAGE = <<<'TXT'
+pl-tax — ile zapłacić za miesiąc: ZUS, VAT, PIT.
+
+UŻYCIE
+  pl-tax --profile=firma.json --sales=2026-08:48500 [opcje]
+  pl-tax --profile=firma.json --sales-file=sprzedaz.json --period=2026-08
+
+WYMAGANE
+  --profile=PLIK        Profil podatnika (JSON). Zobacz examples/profile.json.
+  --sales=M:KWOTA,...   Sprzedaż brutto z kasy fiskalnej, np.
+                        --sales=2026-01:18000,2026-02:21500
+  --sales-file=PLIK     Alternatywnie: JSON {"2026-01": "18000.00", ...}
+
+OPCJONALNE
+  --period=YYYY-MM      Miesiąc do rozliczenia (domyślnie: ostatni podany).
+  --rate=0.23           Stawka VAT dla podanej sprzedaży (domyślnie 0.23 dla
+                        podatnika VAT, "zw" dla zwolnionego).
+  --costs=M:NETTO:VAT   Koszty i VAT naliczony, np. --costs=2026-08:5000:1150
+  --json                Wypisz surowy JSON zamiast raportu tekstowego.
+  --brief               Bez szczegółowego wyliczenia.
+  --year                Rozlicz każdy miesiąc roku po kolei.
+  -h, --help            Ta pomoc.
+
+UWAGA
+  Wynik jest WYLICZENIEM, nie deklaracją. Nic nie jest wysyłane do ZUS ani do
+  urzędu skarbowego.
+TXT;
+
+/** @return array<string,string|bool> */
+function parseArguments(array $argv): array
+{
+    $options = [];
+    foreach (array_slice($argv, 1) as $argument) {
+        if ($argument === '-h' || $argument === '--help') {
+            $options['help'] = true;
+
+            continue;
+        }
+        if (! str_starts_with($argument, '--')) {
+            fail("Nieznany argument: {$argument}");
+        }
+        [$key, $value] = array_pad(explode('=', substr($argument, 2), 2), 2, true);
+        $options[$key] = $value;
+    }
+
+    return $options;
+}
+
+function fail(string $message, int $code = 1): never
+{
+    fwrite(STDERR, 'BŁĄD: '.$message.PHP_EOL);
+    exit($code);
+}
+
+/** @return array<string,string> */
+function parsePairs(string $spec): array
+{
+    $result = [];
+    foreach (explode(',', $spec) as $entry) {
+        $entry = trim($entry);
+        if ($entry === '') {
+            continue;
+        }
+        $parts = explode(':', $entry);
+        if (count($parts) < 2) {
+            fail("Nie potrafię odczytać \"{$entry}\" — oczekiwano formatu ROK-MIESIĄC:KWOTA.");
+        }
+        $result[array_shift($parts)] = implode(':', $parts);
+    }
+
+    return $result;
+}
+
+$options = parseArguments($argv);
+
+if (($options['help'] ?? false) === true || $options === []) {
+    echo USAGE, PHP_EOL;
+    exit(0);
+}
+
+if (! isset($options['profile']) || ! is_string($options['profile'])) {
+    fail('Brak --profile=PLIK. Zobacz --help.');
+}
+
+try {
+    $profile = ProfileFactory::fromJsonFile($options['profile']);
+} catch (Throwable $e) {
+    fail('Profil podatnika: '.$e->getMessage());
+}
+
+$sales = [];
+if (isset($options['sales']) && is_string($options['sales'])) {
+    $sales = parsePairs($options['sales']);
+}
+if (isset($options['sales-file']) && is_string($options['sales-file'])) {
+    if (! is_file($options['sales-file'])) {
+        fail('Nie znaleziono pliku sprzedaży: '.$options['sales-file']);
+    }
+    $decoded = json_decode((string) file_get_contents($options['sales-file']), true);
+    if (! is_array($decoded)) {
+        fail('Plik sprzedaży nie zawiera obiektu JSON.');
+    }
+    $sales = array_merge($sales, array_map(static fn ($v): string => (string) $v, $decoded));
+}
+
+if ($sales === []) {
+    fail('Nie podano sprzedaży. Użyj --sales=2026-08:48500 albo --sales-file=PLIK.');
+}
+
+ksort($sales);
+
+$designation = is_string($options['rate'] ?? null)
+    ? $options['rate']
+    : ($profile->vatStatus->settlesVat() ? '0.23' : 'zw');
+
+$ledger = new Ledger();
+
+try {
+    foreach ($sales as $month => $gross) {
+        $ledger->recordSales(FiscalSalesReport::singleRate(Period::parse((string) $month), $gross, $designation));
+    }
+
+    if (isset($options['costs']) && is_string($options['costs'])) {
+        foreach (parsePairs($options['costs']) as $month => $spec) {
+            [$net, $vat] = array_pad(explode(':', $spec, 2), 2, '0');
+            $ledger->recordPurchases(new PurchaseRegister(
+                Period::parse((string) $month),
+                Money::parse($net),
+                Money::parse($vat),
+            ));
+        }
+    }
+} catch (Throwable $e) {
+    fail($e->getMessage());
+}
+
+$recorded = $ledger->recordedPeriods();
+$period = isset($options['period']) && is_string($options['period'])
+    ? Period::parse($options['period'])
+    : end($recorded);
+
+$engine = SettlementEngine::withDefaultRates();
+$periods = ($options['year'] ?? false) === true
+    ? array_values(array_filter($recorded, static fn (Period $p): bool => $p->year === $period->year))
+    : [$period];
+
+$renderer = new TextReportRenderer();
+$json = [];
+
+foreach ($periods as $each) {
+    try {
+        $report = $engine->settle($profile, $ledger, $each);
+    } catch (Throwable $e) {
+        fail($e->getMessage());
+    }
+
+    if (($options['json'] ?? false) === true) {
+        $json[$each->toString()] = $report;
+
+        continue;
+    }
+
+    echo $renderer->render($report, ($options['brief'] ?? false) !== true);
+}
+
+if ($json !== []) {
+    echo json_encode(
+        count($json) === 1 ? reset($json) : $json,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+    ), PHP_EOL;
+}

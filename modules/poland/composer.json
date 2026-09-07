@@ -1,0 +1,34 @@
+{
+    "name": "signalmesh/poland-accounting",
+    "description": "Polish sole-trader (JDG) tax and compliance layer for the Liberu accounting ERP: VAT, ZUS, PIT, JPK and KSeF.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Poland\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Poland\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Poland\\Laravel\\PolandServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

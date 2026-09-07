@@ -1,0 +1,16 @@
+[Unit]
+Description=Accounting scheduler (account.signalmesh.dev)
+After=network.target
+
+[Service]
+Type=oneshot
+User=accounting
+Group=accounting
+WorkingDirectory=/srv/accounting/foundation
+ExecStart=/usr/bin/php artisan schedule:run
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/accounting/foundation/storage

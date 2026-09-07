@@ -1,0 +1,14 @@
+{
+    "name": "Jan Kowalski — działalność gospodarcza",
+    "nip": "5260250274",
+    "pit_regime": "lump_sum",
+    "lump_sum_rate": 0.03,
+    "vat_status": "exempt_by_size",
+    "vat_settlement": "monthly",
+    "zus_scheme": "full",
+    "sickness_insurance": true,
+    "business_started_at": "2021-03",
+    "business_started_on_day": 1,
+    "deduction_basis": "accrued_for_month",
+    "reduce_health_band_by_social": true
+}

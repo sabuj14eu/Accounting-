@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the accounting scheduler every minute
+
+[Timer]
+OnCalendar=*:0/1
+AccuracySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
