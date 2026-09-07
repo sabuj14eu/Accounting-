@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura>
+  <Podmiot1><NIP>1132316939</NIP><Nazwa>Dostawca bez schematu</Nazwa></Podmiot1>
+  <Fa>
+    <P_2>X/1</P_2>
+    <P_15>1230.00</P_15>
+  </Fa>
+</Faktura>

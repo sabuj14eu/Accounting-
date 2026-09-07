@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-09-07 (fourth) — automation: KSeF, bank, government, reconciliation
+
+### Schema
+| Migration | Tables |
+|---|---|
+| `2026_09_07_000800` | `pl_ksef_credentials` (encrypted token), `pl_ksef_sync_state`, `pl_ksef_documents` |
+| `2026_09_07_000900` | `pl_bank_statements`, `pl_bank_transactions`, `pl_transaction_classifications` |
+| `2026_09_07_001000` | `pl_government_documents` |
+| `2026_09_07_001100` | cross-format duplicate flagging on `pl_bank_transactions` |
+
+All additive. `pl_ksef_documents.original_xml` and `ksef_number` are immutable
+at the model level.
+
+### Added
+- **KSeF InvoiceRead pipeline**: namespace-agnostic FA parser (reads FA(1)/(2)/(3)
+  and an unreleased schema version), dedup by unique index, incremental cursor
+  that only advances on a complete run, immutable original XML, and REQUIRES
+  REVIEW propagation that never rewrites a finished report.
+- **Encrypted credentials**, InvoiceRead-only scope enforced at the enum, the
+  model and the token accessor. The user's KSeF password is never stored.
+- **Bank import**: CSV (bank-dialect detection, CP1250/ISO-8859-2), MT940 and
+  camt.053, all validated against the statement's own opening/closing balances.
+  PDF refuses with a route forward.
+- **Cross-format duplicate detection** — the same payment from MT940 and camt is
+  flagged and excluded rather than doubling costs or being silently dropped.
+- **Deterministic matcher**: MATCHED needs amount-to-the-grosz plus a reference;
+  amount alone never auto-books; one document cannot be claimed twice.
+- **Government inbox** with five action classes, deadline extraction that
+  refuses to invent a date from "within 14 days", and OCR as a refusing port.
+- **AI boundary**: `RESERVED_FOR_ENGINE` fields throw; engine-vs-document
+  disagreement escalates to MANUAL REVIEW and favours neither side.
+- **Certainty states** (CALCULATED / VERIFIED / REQUIRES REVIEW / NOT ENOUGH
+  DATA) combined by worst-case, with the specified messages and a remedy on
+  every caveat.
+- **Month close**: ten steps, each reporting what it could not do; a failing
+  step downgrades certainty rather than aborting.
+
+### Fixed
+Two bugs found by running the pipeline, both of which would have doubled a
+month's costs:
+- The same transaction imported from two formats did not dedup, because optional
+  fields differ between formats.
+- The duplicate query compared a decimal column as a string and a date column
+  against a date-only value, so it silently never matched.
+
+### Verified
+- 182 tests, 543 assertions, green on PHP 8.2-8.5.
+- Full pipeline executed on the ERP: token encrypted and redacted, InvoiceWrite
+  refused, 2 invoices imported, correction flagged, duplicates detected, XML
+  immutable, new invoice after a report raising REQUIRES REVIEW with the report
+  unchanged, three statement formats imported and reconciled, month close
+  reporting NOT ENOUGH DATA with four named caveats.
+
+### Known
+- No KSeF HTTP transport (the API is unreachable from the build environment).
+- No OCR toolchain.
+- Rate verification still blocked. Unchanged.
+
 ## 2026-09-07 (third) — pre-live: report, checklist, deployment
 
 ### Schema

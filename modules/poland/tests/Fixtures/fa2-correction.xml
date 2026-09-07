@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2023/06/29/12648/">
+  <Naglowek><KodFormularza kodSystemowy="FA (2)">FA</KodFormularza></Naglowek>
+  <Podmiot1><DaneIdentyfikacyjne><NIP>1132316939</NIP><Nazwa>Hurtownia Wisla</Nazwa></DaneIdentyfikacyjne></Podmiot1>
+  <Podmiot2><DaneIdentyfikacyjne><NIP>5260250274</NIP><Nazwa>Sklep Kowalski</Nazwa></DaneIdentyfikacyjne></Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-08-20</P_1>
+    <P_2>KOR/2026/08/12</P_2>
+    <P_13_1>-500.00</P_13_1>
+    <P_14_1>-115.00</P_14_1>
+    <P_15>-615.00</P_15>
+    <RodzajFaktury>KOR</RodzajFaktury>
+  </Fa>
+</Faktura>

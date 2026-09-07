@@ -68,12 +68,76 @@ final class PolandServiceProvider extends ServiceProvider
             ),
         );
 
+        // Every external system enters through a port bound to an adapter that
+        // REFUSES. Nothing degrades to a plausible default: an unreachable KSeF
+        // is not "no invoices", and missing OCR is not "no text".
+        $this->app->bind(
+            \Poland\Ksef\Contracts\KsefClient::class,
+            \Poland\Ksef\UnconfiguredKsefClient::class,
+        );
+
+        $this->app->bind(
+            \Poland\Government\Contracts\TextExtractor::class,
+            \Poland\Government\UnavailableTextExtractor::class,
+        );
+
+        $this->app->singleton(\Poland\Ksef\Parsing\FaInvoiceParser::class);
+        $this->app->singleton(\Poland\Government\DocumentClassifier::class);
+
+        $this->app->singleton(
+            \Poland\Reconciliation\TransactionMatcher::class,
+            fn ($app): \Poland\Reconciliation\TransactionMatcher
+                => new \Poland\Reconciliation\TransactionMatcher(
+                    (int) config('poland.reconciliation.date_window_days', 45),
+                ),
+        );
+
+        // Statement parsers, tried in order. PDF last: it refuses, and it must
+        // never shadow a format that can be read exactly.
+        $this->app->singleton('poland.statement_parsers', fn (): array => [
+            new \Poland\Banking\Parsing\Camt053StatementParser(),
+            new \Poland\Banking\Parsing\Mt940StatementParser(),
+            new \Poland\Banking\Parsing\CsvStatementParser(),
+            new \Poland\Banking\Parsing\PdfStatementParser(),
+        ]);
+
+        $this->app->singleton(
+            \Poland\Laravel\Support\KsefIngestService::class,
+            fn ($app): \Poland\Laravel\Support\KsefIngestService
+                => new \Poland\Laravel\Support\KsefIngestService(
+                    $app->make(\Poland\Ksef\Contracts\KsefClient::class),
+                    $app->make(\Poland\Ksef\Parsing\FaInvoiceParser::class),
+                    $app->make(AuditRecorder::class),
+                ),
+        );
+
+        $this->app->singleton(
+            \Poland\Laravel\Support\BankImportService::class,
+            fn ($app): \Poland\Laravel\Support\BankImportService
+                => new \Poland\Laravel\Support\BankImportService(
+                    $app->make('poland.statement_parsers'),
+                    $app->make(AuditRecorder::class),
+                ),
+        );
+
         $this->app->singleton(MonthlyReportService::class, fn ($app): MonthlyReportService => new MonthlyReportService(
             $app->make(\Poland\Reporting\AccountantReportBuilder::class),
             $app->make(SettlementRecorder::class),
             $app->make(LedgerRepository::class),
             $app->make(AuditRecorder::class),
         ));
+
+        $this->app->singleton(
+            \Poland\Laravel\Support\MonthCloseService::class,
+            fn ($app): \Poland\Laravel\Support\MonthCloseService
+                => new \Poland\Laravel\Support\MonthCloseService(
+                    $app->make(\Poland\Laravel\Support\KsefIngestService::class),
+                    $app->make(\Poland\Laravel\Support\BankImportService::class),
+                    $app->make(MonthlyReportService::class),
+                    $app->make(\Poland\Reconciliation\TransactionMatcher::class),
+                    $app->make(AuditRecorder::class),
+                ),
+        );
     }
 
     public function boot(): void

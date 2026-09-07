@@ -35,6 +35,34 @@ return [
     ],
 
     /*
+     * KSeF. Base URLs are configuration, never constants: the Ministry has
+     * moved them before and a hard-coded host becomes a silent outage.
+     *
+     * The scope is InvoiceRead and only InvoiceRead. Issuing invoices in the
+     * taxpayer's name is a different act and needs a deliberate code change,
+     * not a config edit — see Poland\Ksef\KsefScope::allowed().
+     */
+    'ksef' => [
+        'enabled' => (bool) env('KSEF_ENABLED', false),
+        'environment' => env('KSEF_ENVIRONMENT', 'test'),
+        'base_url' => env('KSEF_BASE_URL'),
+        'nip' => env('KSEF_NIP'),
+        'scope' => 'InvoiceRead',
+        // How many days back a routine sync looks. Wider than a month so a run
+        // missed while the server was down still catches up.
+        'lookback_days' => (int) env('KSEF_LOOKBACK_DAYS', 45),
+        'max_invoices_per_run' => (int) env('KSEF_MAX_INVOICES_PER_RUN', 500),
+    ],
+
+    'reconciliation' => [
+        // How far apart a payment and its document may be and still be
+        // considered for a match.
+        'date_window_days' => (int) env('POLAND_MATCH_WINDOW_DAYS', 45),
+        // A suggestion below this is never booked automatically.
+        'auto_book_confidence' => (float) env('POLAND_AUTO_BOOK_CONFIDENCE', 0.9),
+    ],
+
+    /*
      * Presentation locale for the module's screens and reports.
      */
     'locale' => env('POLAND_LOCALE', 'pl'),

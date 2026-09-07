@@ -59,6 +59,23 @@ queue and scheduler, creates an admin account and prints the URL and password.
 Nothing belonging to the trading platform is touched. Details and the manual
 route: `docs/DEPLOYMENT.md`.
 
+## What it does beyond the monthly calculation
+
+Three sources feed one reconciliation, and the deterministic engine still owns
+every tax figure:
+
+```
+KSeF invoices ────┐
+Bank statements ──┼──▶ Reconciliation ──▶ Tax engine ──▶ Report + checklist
+Government PDFs ──┘
+```
+
+Everything that cannot be done **refuses** rather than returning a plausible
+empty value — an unreachable KSeF is not "no invoices", missing OCR is not "no
+text", and a PDF statement is not zero transactions. `docs/AUTOMATION.md` has
+the detail, including what is built and what still needs a network the build
+environment could not reach.
+
 ## Repository layout
 
 ```

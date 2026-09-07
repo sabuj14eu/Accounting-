@@ -58,6 +58,26 @@ VAT registers and document types have not been configured. The foundation itself
 now boots and migrates — see `docs/SUPPORTED_VERSIONS.md` — so this is
 configuration work, not a runtime unknown.
 
+### KSeF HTTP transport is not implemented
+`ksef.mf.gov.pl`, `ksef-test.mf.gov.pl` and every variant are refused by the
+build environment's network policy, so no client could be written against the
+real API or tested against it. Writing one from remembered documentation would
+produce something that looks finished and fails on first contact.
+
+Everything around it IS built and executed: the FA parser, dedup, incremental
+cursor, immutable XML, encrypted InvoiceRead-only tokens, REQUIRES REVIEW
+propagation. `UnconfiguredKsefClient` refuses until a transport exists.
+**Next step: implement `KsefClient` against the current official API, verified
+at source, and test against the KSeF test environment.** See `docs/AUTOMATION.md`.
+
+### No OCR or PDF text extraction
+No `tesseract`, no `pdftotext` in the environment. `UnavailableTextExtractor`
+refuses, and `PdfStatementParser` refuses with a route forward (CSV/MT940/camt).
+Government PDFs are stored and marked for manual review rather than silently
+classified as "information only".
+**Next step: install a text-extraction toolchain on the server and implement the
+`TextExtractor` port.**
+
 ### No KSeF or JPK schema version is registered
 `SchemaRegistry` selects a schema by the period being filed and refuses periods
 it has no version for, and `PreparedDocument` treats "could not be validated" as

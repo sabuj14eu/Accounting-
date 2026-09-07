@@ -38,6 +38,20 @@ final class AuditRecorder
 
     public const PAYMENT_RECORDED = 'payment.recorded';
 
+    public const KSEF_SYNCED = 'ksef.synced';
+
+    public const KSEF_INVOICE_IMPORTED = 'ksef.invoice_imported';
+
+    public const REPORT_REQUIRES_REVIEW = 'report.requires_review';
+
+    public const STATEMENT_IMPORTED = 'bank.statement_imported';
+
+    public const TRANSACTION_CLASSIFIED = 'bank.transaction_classified';
+
+    public const MATCH_DECIDED = 'reconciliation.match_decided';
+
+    public const GOVERNMENT_DOCUMENT_RECEIVED = 'government.document_received';
+
     public const PERIOD_CLOSED = 'period.closed';
 
     public const PERIOD_REOPENED = 'period.reopened';

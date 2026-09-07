@@ -1,0 +1,5 @@
+Data operacji;Data waluty;Opis operacji;Kontrahent;Rachunek odbiorcy;Kwota;Saldo
+2026-08-03;2026-08-03;"Przelew do ZUS skladki 08/2026";"ZUS";"83101010230000261395100000";-2757,34;18 242,66
+2026-08-14;2026-08-14;"FV/2026/08/417 Hurtownia Wisla";"Hurtownia Wisla Sp. z o.o.";"11109010140000071219812874";-5970,00;12 272,66
+2026-08-20;2026-08-20;"Utarg dzienny";"";"";4 350,00;16 622,66
+bad row;;;;;;

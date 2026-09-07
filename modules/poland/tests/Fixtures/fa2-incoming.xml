@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2023/06/29/12648/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (2)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>2</WariantFormularza>
+    <DataWytworzeniaFa>2026-08-14T10:22:31Z</DataWytworzeniaFa>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>1132316939</NIP>
+      <Nazwa>Hurtownia Wisla Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <NIP>5260250274</NIP>
+      <Nazwa>Sklep Kowalski</Nazwa>
+    </DaneIdentyfikacyjne>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-08-14</P_1>
+    <P_2>FV/2026/08/417</P_2>
+    <P_6>2026-08-13</P_6>
+    <P_13_1>4000.00</P_13_1>
+    <P_14_1>920.00</P_14_1>
+    <P_13_3>1000.00</P_13_3>
+    <P_14_3>50.00</P_14_3>
+    <P_15>5970.00</P_15>
+    <RodzajFaktury>VAT</RodzajFaktury>
+  </Fa>
+</Faktura>

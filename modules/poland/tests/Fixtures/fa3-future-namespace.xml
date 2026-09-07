@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2026/01/01/99999/">
+  <Naglowek><KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza></Naglowek>
+  <Podmiot1><DaneIdentyfikacyjne><NIP>1132316939</NIP><Nazwa>Przyszla Wersja</Nazwa></DaneIdentyfikacyjne></Podmiot1>
+  <Podmiot2><DaneIdentyfikacyjne><NIP>5260250274</NIP><Nazwa>Sklep Kowalski</Nazwa></DaneIdentyfikacyjne></Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-09-01</P_1>
+    <P_2>FV/9/1</P_2>
+    <P_13_1>200.00</P_13_1>
+    <P_14_1>46.00</P_14_1>
+    <P_15>246.00</P_15>
+  </Fa>
+</Faktura>
