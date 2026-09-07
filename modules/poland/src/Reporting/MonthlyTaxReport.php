@@ -44,7 +44,47 @@ final class MonthlyTaxReport implements \JsonSerializable
         public readonly array $warnings = [],
         public readonly bool $isEstimate = false,
         public readonly array $rateSources = [],
+        /**
+         * Full provenance of every rate version used, stored with the report so
+         * the settlement stays defensible as it stood on the day it was made.
+         *
+         * @var array<string,array<string,mixed>>
+         */
+        public readonly array $rateProvenance = [],
+        /**
+         * Whether every rate used was verified against its official source.
+         * False means the figures are for orientation, not for filing.
+         */
+        public readonly bool $ratesFitForFiling = false,
     ) {
+    }
+
+    /**
+     * Whether this report may be advanced to preparation and filing.
+     *
+     * An estimate may not, and neither may a figure computed from rates nobody
+     * has checked against the issuing authority. Both are legitimate things to
+     * look at; neither is a thing to submit.
+     */
+    public function fitForFiling(): bool
+    {
+        return ! $this->isEstimate && $this->ratesFitForFiling;
+    }
+
+    /** @return list<string> */
+    public function blockersToFiling(): array
+    {
+        $blockers = [];
+
+        if ($this->isEstimate) {
+            $blockers[] = 'Wynik jest oszacowaniem — brakuje danych do dokładnego wyliczenia.';
+        }
+
+        if (! $this->ratesFitForFiling) {
+            $blockers[] = 'Użyte stawki nie zostały potwierdzone w źródłach urzędowych.';
+        }
+
+        return $blockers;
     }
 
     /** What is left after the month's takings pay the month's public charges. */
@@ -78,6 +118,9 @@ final class MonthlyTaxReport implements \JsonSerializable
                 'left_after_charges' => $this->netAfterCharges(),
             ],
             'is_estimate' => $this->isEstimate,
+            'rates_fit_for_filing' => $this->ratesFitForFiling,
+            'fit_for_filing' => $this->fitForFiling(),
+            'blockers_to_filing' => $this->blockersToFiling(),
             'deadlines' => array_map(static fn (array $d): array => [
                 'label' => $d['label'],
                 'date' => $d['date']->format('Y-m-d'),
@@ -91,6 +134,7 @@ final class MonthlyTaxReport implements \JsonSerializable
             'warnings' => $this->warnings,
             'notes' => $this->notes,
             'rate_sources' => $this->rateSources,
+            'rate_provenance' => $this->rateProvenance,
         ];
     }
 }

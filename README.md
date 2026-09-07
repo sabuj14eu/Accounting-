@@ -80,16 +80,30 @@ cd foundation && php artisan migrate && php artisan poland:verify-rates
 
 ## What this software does not do
 
-- **It does not file anything.** Every figure is a calculation. Nothing is sent
-  to ZUS, to the tax office or to KSeF, and a settlement is marked as filed only
-  when a real submission returns a reference.
+- **It does not file anything.** Calculation, preparation and filing are three
+  separate stages with three separate truth conditions. Nothing is sent to ZUS,
+  to the tax office or to KSeF — every filing channel is bound to an adapter
+  that refuses — and a settlement becomes "filed" only when a submission returns
+  a reference.
 - **It does not replace an accountant.** It shows the arithmetic, the rates it
   used and where those rates came from, so both of you can check it.
 - **It does not touch trading.** See `docs/ISOLATION.md`.
 
 ## Status
 
-Phase 1 (foundation, Polish tax engine, kasa fiskalna workflow) is built and
-tested. Phases 2–6 — NBP rates, KSeF, JPK, automation, the SignalMesh
-navigation item — are specified in `docs/ROADMAP.md` and not yet built.
-`docs/OPEN_ITEMS.md` is the honest list of what is deferred.
+Phase 1 is built, executed and tested. The full stack — Liberu ERP on PHP 8.5,
+migrations, the module's models, commands and HTTP routes — has actually been
+run, not just written: `docs/SUPPORTED_VERSIONS.md` records exactly what and
+when. 106 tests, 268 assertions, green on PHP 8.2–8.5.
+
+**One P0 remains and it blocks production.** Every rate is currently sourced
+from Polish accounting publications and cross-checked arithmetically, not
+confirmed against the issuing authority. The software refuses to hide this: with
+`POLAND_REQUIRE_OFFICIAL_RATES=true` the engine will not settle at all, and
+without it every report says the figures are not fit for filing.
+`php artisan poland:rate-provenance --todo` prints the worklist with the exact
+official URL for each figure. Procedure: `docs/RATE_VERIFICATION.md`.
+
+`docs/DEFINITION_OF_DONE.md` tracks all eighteen release conditions with the
+proof for each. Phases 2–6 — NBP rates, KSeF, JPK, automation, the SignalMesh
+navigation item — are in `docs/ROADMAP.md` and not built.

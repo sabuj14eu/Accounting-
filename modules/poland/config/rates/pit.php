@@ -13,6 +13,7 @@ declare(strict_types=1);
 return [
     'versions' => [
         [
+            'version' => '2025.1',
             'effective_from' => '2025-01',
             'effective_to' => '2025-12',
             'scale' => [
@@ -31,10 +32,29 @@ return [
                 // Annual (PIT-DSF), never part of a monthly advance.
                 'monthly_advance' => false,
             ],
-            'source' => 'Ustawa o podatku dochodowym od osób fizycznych, art. 27 ust. 1, art. 30c, art. 30h.',
-            'verified_on' => '2026-09-07',
+            'meanings' => [
+                'scale.tax_free_allowance' => 'Kwota wolna od podatku w skali podatkowej.',
+                'scale.tax_reducing_amount' => 'Kwota zmniejszająca podatek (12% z kwoty wolnej), odejmowana od podatku narastająco.',
+                'scale.first_threshold' => 'Górna granica pierwszego progu podatkowego; nadwyżka opodatkowana stawką 32%.',
+                'scale.first_rate' => 'Stawka pierwszego progu.',
+                'scale.second_rate' => 'Stawka drugiego progu.',
+                'flat.rate' => 'Stawka podatku liniowego.',
+                'solidarity_levy.threshold' => 'Próg daniny solidarnościowej; danina jest roczna i nie wchodzi do zaliczki miesięcznej.',
+                'solidarity_levy.rate' => 'Stawka daniny solidarnościowej od nadwyżki ponad próg.',
+            ],
+            'provenance' => [
+                'status' => 'secondary',
+                'source_document' => 'Ustawa o podatku dochodowym od osób fizycznych, art. 27 ust. 1, art. 30c, art. 30h',
+                'source_url' => 'https://www.pit.pl/skala-podatkowa-pit/',
+                'official_source_url' => 'https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU19910800350',
+                'published_on' => null,
+                'checked_on' => '2026-09-07',
+                'checked_by' => 'claude-code — kontrola arytmetyczna',
+                'notes' => 'Parametry skali nie zmieniały się od lipca 2022 r. Do odczytania wprost z art. 27 ust. 1 ustawy o PIT.',
+            ],
         ],
         [
+            'version' => '2026.1',
             'effective_from' => '2026-01',
             'effective_to' => null,
             'scale' => [
@@ -52,8 +72,27 @@ return [
                 'rate' => 0.04,
                 'monthly_advance' => false,
             ],
-            'source' => 'Ustawa o PIT, art. 27 ust. 1, art. 30c, art. 30h — parametry skali niezmienione względem 2025 r.',
-            'verified_on' => '2026-09-07',
+            'meanings' => [
+                'scale.tax_free_allowance' => 'Kwota wolna od podatku w skali podatkowej.',
+                'scale.tax_reducing_amount' => 'Kwota zmniejszająca podatek (12% z kwoty wolnej), odejmowana od podatku narastająco.',
+                'scale.first_threshold' => 'Górna granica pierwszego progu podatkowego; nadwyżka opodatkowana stawką 32%.',
+                'scale.first_rate' => 'Stawka pierwszego progu.',
+                'scale.second_rate' => 'Stawka drugiego progu.',
+                'flat.rate' => 'Stawka podatku liniowego.',
+                'solidarity_levy.threshold' => 'Próg daniny solidarnościowej; danina jest roczna i nie wchodzi do zaliczki miesięcznej.',
+                'solidarity_levy.rate' => 'Stawka daniny solidarnościowej od nadwyżki ponad próg.',
+            ],
+            'provenance' => [
+                'status' => 'secondary',
+                'source_document' => 'Ustawa o PIT, art. 27 ust. 1, art. 30c, art. 30h — parametry skali niezmienione względem 2025 r.',
+                'source_url' => 'https://www.pit.pl/skala-podatkowa-pit/',
+                'official_source_url' => 'https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU19910800350',
+                'published_on' => null,
+                'checked_on' => '2026-09-07',
+                'checked_by' => 'claude-code — kontrola arytmetyczna',
+                'notes' => 'DO POTWIERDZENIA: że na 2026 r. nie zmieniono kwoty wolnej ani progu. '
+                    .'Brak zmiany jest twierdzeniem o stanie prawnym i wymaga sprawdzenia tak samo jak zmiana.',
+            ],
         ],
     ],
 
@@ -63,6 +102,19 @@ return [
      * this software cannot infer — the taxpayer selects it in their profile
      * and the selection is recorded in the audit trail.
      */
+    'lump_sum_rates_provenance' => [
+        'status' => 'secondary',
+        'source_document' => 'Ustawa o zryczałtowanym podatku dochodowym od niektórych przychodów osiąganych przez osoby fizyczne, art. 12',
+        'source_url' => '',
+        'official_source_url' => 'https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU19981440930',
+        'published_on' => null,
+        'checked_on' => '2026-09-07',
+        'checked_by' => 'claude-code',
+        'notes' => 'Lista stawek służy wyłącznie do podpowiedzi w interfejsie. Która stawka ma '
+            .'zastosowanie, zależy od faktycznie wykonywanej działalności (PKWiU) i jest decyzją '
+            .'podatnika, nie oprogramowania.',
+    ],
+
     'lump_sum_rates' => [
         '0.17' => '17% — wolne zawody',
         '0.15' => '15% — m.in. usługi pośrednictwa, reklamowe, doradcze, kulturalne',

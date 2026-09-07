@@ -68,6 +68,22 @@ final class TextReportRenderer
             $out[] = '';
         }
 
+        // Calculation, preparation and filing are three different claims. The
+        // report states which one it is, every time, whether or not anything
+        // is wrong — a caveat that only appears when something is wrong reads
+        // as an all-clear when it is absent.
+        $stage = ['Etap: WYLICZENIE. Nic nie zostało wysłane do ZUS ani do urzędu skarbowego.'];
+        if ($report->fitForFiling()) {
+            $stage[] = 'Dane i stawki pozwalają przejść do przygotowania dokumentów.';
+        } else {
+            $stage[] = 'Ten wynik NIE nadaje się do złożenia:';
+            foreach ($report->blockersToFiling() as $blocker) {
+                $stage[] = '  - '.$blocker;
+            }
+        }
+        $out[] = $this->box('WYLICZENIE / PRZYGOTOWANIE / ZŁOŻENIE', $stage);
+        $out[] = '';
+
         if ($report->warnings !== []) {
             $out[] = ' OSTRZEŻENIA';
             $out[] = $this->rule('-');
@@ -96,6 +112,18 @@ final class TextReportRenderer
         $out[] = $this->rule('-');
         foreach ($report->rateSources as $source) {
             $out[] = $this->bullet('-', $source);
+        }
+        foreach ($report->rateProvenance as $table => $entry) {
+            $provenance = $entry['provenance'] ?? null;
+            if ($provenance instanceof \Poland\Rates\RateProvenance
+                && ! $provenance->status->fitForFiling()
+                && $provenance->officialSourceUrl !== '') {
+                $out[] = $this->bullet('?', sprintf(
+                    '%s — do potwierdzenia w: %s',
+                    $table,
+                    $provenance->officialSourceUrl,
+                ));
+            }
         }
         $out[] = '';
 

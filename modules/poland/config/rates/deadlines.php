@@ -28,6 +28,20 @@ return [
         'label' => 'VAT — zapłata i wysyłka JPK_V7',
     ],
 
+    'provenance' => [
+        'status' => 'secondary',
+        'source_document' => 'Ordynacja podatkowa, art. 12 § 5 (przesunięcie terminu); ustawa o dniach wolnych od pracy; ustawa o systemie ubezpieczeń społecznych, art. 47 (terminy ZUS)',
+        'source_url' => '',
+        'official_source_url' => 'https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU19510040028',
+        'published_on' => null,
+        'checked_on' => '2026-09-07',
+        'checked_by' => 'claude-code — daty świąt ruchomych wyliczone z dat Wielkanocy',
+        'notes' => 'Święta ruchome (Wielkanoc, Zielone Świątki, Boże Ciało) wyliczono z dat '
+            .'Wielkanocy: 2025-04-20, 2026-04-05, 2027-03-28. Terminy ZUS przyjęto jako 20. dzień '
+            .'miesiąca — właściwy dla przedsiębiorcy opłacającego składki wyłącznie za siebie. '
+            .'DO POTWIERDZENIA dla płatnika zatrudniającego pracowników (15. dzień).',
+    ],
+
     // Public holidays in Poland. Used only to move a deadline forward, never to
     // move it earlier. Missing years mean the shift cannot be computed, and the
     // report says so instead of silently returning the raw statutory date.

@@ -19,6 +19,11 @@ FOUNDATION_REPO="https://github.com/liberusoftware/accounting-erp-laravel"
 # Pinned so a deployment is reproducible. Verified installable on 2026-09-07.
 FOUNDATION_REF="3a23437a432c74637aca56bb0daed27430d481ee"
 
+# Verified working combination (booted, migrated and exercised 2026-09-07):
+#   PHP 8.5.0 - Laravel 13.29.0 - Filament v5.7.6 - Livewire v4.4.3
+#   Liberu accounting-erp-laravel @ 3a23437 - 674 composer packages
+#   288 migrations applied, including this module's five.
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${1:-$REPO_ROOT/foundation}"
 
@@ -85,8 +90,21 @@ file_put_contents(
 ' "$TARGET/composer.json"
 
 # --- Install ----------------------------------------------------------------
-say "composer install (to potrwa — foundation ma ~470 pakietów)"
+say "composer install (to potrwa — foundation ma ~670 pakietow)"
 ( cd "$TARGET" && composer install --no-interaction --prefer-dist --no-dev )
+
+# Laravel discovers a package's service provider from a Composer script. Skipping
+# scripts installs the module and silently never registers it: no commands, no
+# routes, no migrations, and no error anywhere saying so. Run discovery
+# explicitly rather than trusting the install to have done it.
+say "package:discover"
+( cd "$TARGET" && php artisan package:discover --ansi )
+
+if ! ( cd "$TARGET" && php artisan list 2>/dev/null | grep -q 'poland:report' ); then
+    die "Modul Poland zainstalowal sie, ale jego provider nie zostal zarejestrowany.
+      Sprawdz extra.laravel.providers w modules/poland/composer.json oraz
+      bootstrap/cache/packages.php. Nie migruj, dopoki to nie dziala."
+fi
 
 if [ ! -f "$TARGET/.env" ]; then
     say "Tworzę .env z szablonu tego repozytorium"
@@ -101,4 +119,5 @@ say "Gotowe. Następnie:"
 echo "    cd $TARGET"
 echo "    php artisan migrate"
 echo "    php artisan poland:verify-rates"
+echo "    php artisan poland:rate-provenance --todo   # co musi potwierdzic ksiegowy"
 echo "    php artisan poland:report $(date -d 'last month' +%Y-%m 2>/dev/null || date +%Y-%m) --sales=48500"

@@ -26,6 +26,10 @@ final class AuditRecorder
 
     public const SETTLEMENT_COMPUTED = 'settlement.computed';
 
+    public const DOCUMENT_PREPARED = 'document.prepared';
+
+    public const DOCUMENT_SUBMITTED = 'document.submitted';
+
     public const SETTLEMENT_FILED = 'settlement.filed';
 
     public const PROFILE_CHANGED = 'profile.changed';

@@ -58,7 +58,9 @@
         <div class="note" style="color: var(--ok); border-color: var(--ok);">{{ session('status') }}</div>
     @endif
 
-    @foreach ($errors->all() as $message)
+    {{-- $errors is bound by the web middleware group. Guarded so the view can
+         also be rendered outside a request — from a command, or into a PDF. --}}
+    @foreach (($errors ?? collect())->all() ?? [] as $message)
         <div class="warn bad">{{ $message }}</div>
     @endforeach
 
@@ -98,6 +100,23 @@
         @foreach ($report->warnings as $warning)
             <div class="warn">{{ $warning }}</div>
         @endforeach
+
+        {{-- The three stages are different claims. This block exists so the
+             screen can never let a calculation read as a filing. --}}
+        <div class="warn bad">
+            <strong>Nic nie zostało złożone.</strong>
+            To jest wyliczenie.
+            @if ($report->fitForFiling())
+                Dane i stawki pozwalają przejść do przygotowania dokumentów.
+            @else
+                Nie nadaje się do złożenia:
+                <ul style="margin:6px 0 0;padding-left:18px">
+                    @foreach ($report->blockersToFiling() as $blocker)
+                        <li>{{ $blocker }}</li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
 
         <div class="card">
             <div class="grid">
@@ -222,8 +241,17 @@
         @if ($report)
             <br><br><strong>Źródła stawek:</strong>
             <ul style="margin:6px 0 0;padding-left:18px">
-                @foreach ($report->rateSources as $source)
-                    <li>{{ $source }}</li>
+                @foreach ($report->rateProvenance as $table => $entry)
+                    <li>
+                        <strong>{{ $table }}</strong> v{{ $entry['version'] }}
+                        ({{ $entry['effective_from'] }} → {{ $entry['effective_to'] ?? '…' }})
+                        — {{ $entry['provenance']->status->label() }}<br>
+                        {{ $entry['provenance']->sourceDocument }}
+                        @if (! $entry['provenance']->status->fitForFiling())
+                            <br><em>do potwierdzenia w:</em>
+                            {{ $entry['provenance']->officialSourceUrl }}
+                        @endif
+                    </li>
                 @endforeach
             </ul>
         @endif

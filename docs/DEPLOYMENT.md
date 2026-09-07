@@ -1,5 +1,19 @@
 # Deployment — account.signalmesh.dev
 
+## Production must refuse unverified rates
+
+```bash
+POLAND_REQUIRE_OFFICIAL_RATES=true
+```
+
+Set it. With it on, the engine throws `UnverifiedRateException` rather than
+settling a month on a rate nobody has confirmed against the issuing authority.
+`php artisan poland:rate-provenance --todo` lists what remains; the procedure is
+in `docs/RATE_VERIFICATION.md`.
+
+Leaving it false in production means the application will hand somebody an
+amount to pay that was derived from figures read in the trade press.
+
 ## Prerequisite that will bite you first
 
 **The Liberu ERP requires PHP 8.5.** This is not a soft requirement from
@@ -51,7 +65,12 @@ $EDITOR .env                      # database, Redis DB indexes, APP_URL
 php artisan key:generate
 php artisan migrate
 php artisan poland:verify-rates
+php artisan poland:rate-provenance --todo   # what the accountant must confirm
 ```
+
+Verified working combination is in `docs/SUPPORTED_VERSIONS.md`: PHP 8.5.0,
+Laravel 13.29.0, Filament v5.7.6, Liberu `3a23437`, 674 packages, 288
+migrations. Those numbers come from running it, not from a changelog.
 
 ## Database and Redis
 
@@ -101,6 +120,7 @@ php artisan migrate --force
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 sudo systemctl restart php8.5-fpm@accounting accounting-queue.service
 php artisan poland:verify-rates
+php artisan poland:rate-provenance
 tail -n 100 storage/logs/laravel.log
 ```
 
@@ -122,6 +142,9 @@ Check the things that would actually be wrong:
 
 - `poland:verify-rates` fails → the tables are running out; a taxpayer is about
   to hit a month the software cannot price.
+- `poland:rate-provenance` fails → some rate is still unverified. With
+  `POLAND_REQUIRE_OFFICIAL_RATES=true` that is not a warning, it is an outage of
+  the settlement feature — which is the intended behaviour.
 - Queue depth grows without draining → the worker is dead or looping.
 - A settlement carries `is_estimate = true` for a month the taxpayer believes is
   complete → a purchase register is missing.

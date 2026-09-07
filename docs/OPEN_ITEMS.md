@@ -8,20 +8,32 @@ only when it is done and verified, and say where the proof is.
 
 ## P0 — must be settled before real accounting use
 
-### The rate tables have been read from secondary sources, not from the statutes
-Every figure in `modules/poland/config/rates/` was taken from Polish accounting
-press and cross-checked arithmetically against its own stated formula (the tests
-in `RateTableTest` verify, for example, that each ryczałt health band really is
-9% of its stated percentage of the reference wage, and the published headline
-ZUS totals for 2025 and 2026 are pinned in `ZusCalculatorTest`). That is a
-strong consistency check and it is **not** the same as reading the statute or
-the ZUS/MF announcement.
+### The rate tables have not been verified against official sources
+Every version in `modules/poland/config/rates/` is marked `secondary`: taken
+from competent Polish accounting publications and cross-checked arithmetically
+against its own stated formula. That catches transcription errors. It cannot
+catch a wrong source.
 
-Before the first real filing, an accountant should confirm against primary
-sources: the 2026 social bases (5 652,00 / 1 441,80 zł), the health contribution
-amounts for both contribution years, the flat-tax health deduction cap
-(14 100 zł for 2026), and the VAT exemption limit of 240 000 zł.
-**Owner: the taxpayer's accountant. Proof required: a signed-off note here.**
+Attempting the verification from the build environment is **impossible**, not
+merely undone: zus.pl, gov.pl, isap.sejm.gov.pl, stat.gov.pl and api.nbp.pl are
+all refused by the network egress policy (403 on CONNECT). It needs a human with
+network access.
+
+The software now refuses to hide this. Every report names the unverified tables
+and lists them as a blocker to filing; `POLAND_REQUIRE_OFFICIAL_RATES=true`
+makes the engine throw rather than settle; and preparation refuses to build a
+document from a settlement that is not fit for filing.
+
+Run `php artisan poland:rate-provenance --todo` for the worklist with the exact
+URL for each figure. Procedure in `docs/RATE_VERIFICATION.md`.
+
+Most critical single item: **whether the 2026 health-contribution reform (9% of
+75% of the minimum wage) really did not take effect.** The secondary sources say
+it was vetoed. If they are wrong, every 2026 health figure in the system is
+wrong.
+
+**Owner: the taxpayer's accountant. Proof required: `status => 'official'` with
+a source URL on every version, plus the note here deleted.**
 
 ### Which ryczałt rate applies has not been determined
 `examples/profile.json` ships 3% (trade in goods) as an example, not as advice.
@@ -41,18 +53,26 @@ real filing from cash-register data alone. Phase 2 (KPiR) closes it.
 ## P1 — needed for a complete Phase 1
 
 ### Polish chart of accounts and company defaults not configured
-The Liberu foundation ships its own chart of accounts. Polish account
-numbering, VAT registers and document types have not been configured, and the
-foundation has not been booted on a PHP 8.5 host in this project yet.
-**Next step: run `bin/install-foundation.sh` on a PHP 8.5 host, then configure.**
+The Liberu foundation ships its own chart of accounts. Polish account numbering,
+VAT registers and document types have not been configured. The foundation itself
+now boots and migrates — see `docs/SUPPORTED_VERSIONS.md` — so this is
+configuration work, not a runtime unknown.
 
-### The application layer has not been executed
-`src/Laravel/*`, the migrations and the dashboard view are written and
-syntax-checked but have never run, because the ERP needs PHP 8.5 and the
-development environment had 8.4. The tax engine underneath them is fully tested
-and does not depend on them.
-**Proof required: `php artisan migrate` and one settlement recorded through the
-web form on a PHP 8.5 host.**
+### No KSeF or JPK schema version is registered
+`SchemaRegistry` selects a schema by the period being filed and refuses periods
+it has no version for, and `PreparedDocument` treats "could not be validated" as
+distinct from "valid". No actual XSD is registered, so no document can be
+prepared yet. Phase 3/4.
+
+### Filing is not implemented for any channel
+`UnconfiguredSubmitter` is bound for every channel and throws. That is
+deliberate: the filing stage exists in the model, and the honest state of it is
+that nothing is sent anywhere. A taxpayer files themselves and records the
+reference through `markFiled()`.
+
+### No exchange-rate adapter
+`UnavailableExchangeRateProvider` refuses rather than defaulting. A missing rate
+is not 1.0 and is not yesterday's rate. NBP adapter is Phase 2.
 
 ### Multi-rate ryczałt is supported by the engine but not by data entry
 `FiscalSalesReport` lines carry an optional per-line ryczałt rate and
@@ -91,6 +111,21 @@ warns; it does not calculate the annual settlement. That belongs with the annual
 return (PIT-28), which is not built.
 
 ---
+
+### Three bugs were found by executing the Laravel layer, and fixed
+Recorded because they are the argument for the integration job in CI:
+1. `RateProvenance` constructor parameters were declared in a different order
+   than `fromArray()` passed them positionally. Fixed, and the call now uses
+   named arguments so it cannot recur; pinned by
+   `test_provenance_fields_are_read_in_the_right_order`.
+2. A sales correction inserted the new report before superseding the old one,
+   violating the unique index that makes duplicate months impossible. Order was
+   load-bearing and is now commented as such.
+3. The dashboard view assumed `$errors` is always bound, which is only true
+   inside the `web` middleware group. Guarded.
+
+None of these were visible to `php -l`, and none were visible to the engine's
+own test suite.
 
 ## Deliberately not done
 

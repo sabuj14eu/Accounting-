@@ -7,6 +7,7 @@ namespace Poland\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use Poland\Domain\Period;
 use Poland\Rates\MissingRateException;
+use Poland\Rates\RateProvenance;
 use Poland\Rates\RateRepository;
 use Poland\Rates\RateTable;
 
@@ -96,13 +97,30 @@ final class RateTableTest extends TestCase
         }
     }
 
+    /** A minimal well-formed version, so structural tests are not about provenance. */
+    private function fixture(string $from, ?string $to, string $version = '1'): array
+    {
+        return [
+            'version' => $version,
+            'effective_from' => $from,
+            'effective_to' => $to,
+            'provenance' => [
+                'status' => 'secondary',
+                'source_document' => 'fixture',
+                'official_source_url' => 'https://example.invalid/fixture',
+                'checked_on' => '2026-09-07',
+                'checked_by' => 'test',
+            ],
+        ];
+    }
+
     public function test_overlapping_versions_are_rejected_at_construction(): void
     {
         $this->expectExceptionMessageMatches('/overlap/');
 
         new RateTable('test', ['versions' => [
-            ['effective_from' => '2026-01', 'effective_to' => '2026-12'],
-            ['effective_from' => '2026-06', 'effective_to' => '2027-05'],
+            $this->fixture('2026-01', '2026-12', 'a'),
+            $this->fixture('2026-06', '2027-05', 'b'),
         ]]);
     }
 
@@ -111,24 +129,133 @@ final class RateTableTest extends TestCase
         $this->expectExceptionMessageMatches('/open-ended/');
 
         new RateTable('test', ['versions' => [
-            ['effective_from' => '2026-01', 'effective_to' => null],
-            ['effective_from' => '2027-01', 'effective_to' => null],
+            $this->fixture('2026-01', null, 'a'),
+            $this->fixture('2027-01', null, 'b'),
         ]]);
     }
 
-    public function test_every_shipped_version_names_its_source(): void
+    public function test_a_version_without_provenance_is_rejected(): void
+    {
+        // A rate nobody can trace is a rate nobody can defend, so the table
+        // refuses to load rather than serving an untraceable number.
+        $this->expectExceptionMessageMatches('/provenance/');
+
+        new RateTable('test', ['versions' => [
+            ['version' => '1', 'effective_from' => '2026-01', 'effective_to' => null],
+        ]]);
+    }
+
+    public function test_a_version_without_a_version_identifier_is_rejected(): void
+    {
+        $this->expectExceptionMessageMatches('/missing "version"/');
+
+        new RateTable('test', ['versions' => [
+            ['effective_from' => '2026-01', 'effective_to' => null, 'provenance' => []],
+        ]]);
+    }
+
+    public function test_provenance_that_is_not_official_must_say_where_to_verify_it(): void
+    {
+        // An unverified rate with no route to verification never gets verified.
+        $this->expectExceptionMessageMatches('/WHERE it has to be confirmed/');
+
+        RateProvenance::fromArray([
+            'status' => 'secondary',
+            'source_document' => 'trade press',
+            'checked_on' => '2026-09-07',
+            'checked_by' => 'test',
+        ]);
+    }
+
+    public function test_provenance_marked_official_must_carry_the_official_url(): void
+    {
+        $this->expectExceptionMessageMatches('/must carry the URL/');
+
+        RateProvenance::fromArray([
+            'status' => 'official',
+            'source_document' => 'Dz.U. 2025 poz. 1',
+            'checked_on' => '2026-09-07',
+            'checked_by' => 'test',
+        ]);
+    }
+
+    public function test_provenance_fields_are_read_in_the_right_order(): void
+    {
+        // Eight string-ish constructor parameters; a positional call survives a
+        // reordering silently, so the mapping itself is pinned.
+        $provenance = RateProvenance::fromArray([
+            'status' => 'official',
+            'source_document' => 'DOC',
+            'source_url' => 'https://source.invalid/a',
+            'official_source_url' => 'https://official.invalid/b',
+            'published_on' => '2025-06-24',
+            'checked_on' => '2026-09-07',
+            'checked_by' => 'WHO',
+            'notes' => 'NOTE',
+        ]);
+
+        self::assertSame('DOC', $provenance->sourceDocument);
+        self::assertSame('https://source.invalid/a', $provenance->sourceUrl);
+        self::assertSame('https://official.invalid/b', $provenance->officialSourceUrl);
+        self::assertSame('2025-06-24', $provenance->publishedOn);
+        self::assertSame('2026-09-07', $provenance->checkedOn);
+        self::assertSame('WHO', $provenance->checkedBy);
+        self::assertSame('NOTE', $provenance->notes);
+    }
+
+    public function test_every_shipped_version_carries_complete_provenance(): void
     {
         foreach (RateRepository::TABLES as $name) {
-            $table = $this->rates()->table($name);
-            foreach ($table->versions() as $version) {
-                self::assertNotSame(
-                    'unspecified',
-                    $version->source(),
-                    sprintf('Rate table "%s" has a version with no source.', $name),
-                );
-                self::assertNotNull(
-                    $version->verifiedOn(),
-                    sprintf('Rate table "%s" has a version with no verification date.', $name),
+            foreach ($this->rates()->table($name)->versions() as $version) {
+                $where = sprintf('%s v%s', $name, $version->version);
+
+                self::assertNotSame('', trim($version->version), "{$where}: empty version identifier");
+                self::assertNotSame('', trim($version->provenance->sourceDocument), "{$where}: no source document");
+                self::assertNotSame('', trim($version->provenance->checkedOn), "{$where}: no check date");
+                self::assertNotSame('', trim($version->provenance->checkedBy), "{$where}: no checker");
+
+                if (! $version->provenance->status->fitForFiling()) {
+                    self::assertNotSame(
+                        '',
+                        trim($version->provenance->officialSourceUrl),
+                        "{$where}: not official, and no official source named to verify it against",
+                    );
+                }
+            }
+        }
+    }
+
+    public function test_the_shipped_tables_are_honest_about_not_being_officially_verified(): void
+    {
+        // This test is expected to FAIL the day somebody verifies the rates
+        // against official sources and flips the statuses. That is the point:
+        // it makes the transition deliberate rather than accidental, and the
+        // failure message says exactly what to do.
+        $notOfficial = [];
+        foreach (RateRepository::TABLES as $name) {
+            foreach ($this->rates()->table($name)->versions() as $version) {
+                if (! $version->provenance->status->fitForFiling()) {
+                    $notOfficial[] = $name.' v'.$version->version;
+                }
+            }
+        }
+
+        self::assertNotEmpty(
+            $notOfficial,
+            'Every shipped rate version is now marked official. If that is genuinely true, '
+            .'delete this test and update docs/OPEN_ITEMS.md — do not just re-run it.',
+        );
+    }
+
+    public function test_values_carry_a_stated_meaning(): void
+    {
+        // A number whose meaning lives only in a developer's head cannot be
+        // checked by the accountant who has to sign it off.
+        foreach (['zus_social', 'zus_health', 'pit', 'vat'] as $name) {
+            foreach ($this->rates()->table($name)->versions() as $version) {
+                self::assertNotEmpty(
+                    $version->meanings,
+                    sprintf('%s v%s has no meanings for its values.', $name, $version->version),
                 );
             }
         }

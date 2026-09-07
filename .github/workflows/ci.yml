@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3', '8.4']
+        php: ['8.2', '8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -71,3 +71,65 @@ jobs:
             }
             exit($failed ? 1 : 0);
           '
+
+  laravel-integration:
+    name: Liberu boots, migrates and runs the module (PHP 8.5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, intl, dom, xml, sqlite3, pdo_sqlite, curl, zip, gd, bcmath
+          coverage: none
+
+      # The point of this job: the module's Laravel layer is not "written", it
+      # RUNS. Provider discovery, migrations, models, the recorder, the console
+      # commands and the HTTP route are all exercised against the real ERP.
+      - name: Install the foundation and mount the module
+        run: app/bin/install-foundation.sh "$GITHUB_WORKSPACE/foundation"
+
+      - name: Configure SQLite
+        working-directory: foundation
+        run: |
+          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|' .env
+          sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$GITHUB_WORKSPACE/foundation/database/database.sqlite|" .env
+          mkdir -p database && touch database/database.sqlite
+          php artisan key:generate --force
+
+      - name: Migrate
+        working-directory: foundation
+        run: php artisan migrate --force
+
+      - name: The module's tables exist
+        working-directory: foundation
+        run: |
+          for t in pl_tax_profiles pl_sales_reports pl_settlements pl_audit_events pl_prepared_documents; do
+            php artisan migrate:status | grep -q poland || true
+            sqlite3 database/database.sqlite ".tables" | grep -q "$t" \
+              || { echo "missing table $t"; exit 1; }
+          done
+
+      - name: Commands are registered and run
+        working-directory: foundation
+        run: |
+          php artisan list | grep -q 'poland:report'
+          php artisan list | grep -q 'poland:verify-rates'
+          php artisan poland:verify-rates --months=3
+
+      - name: Routes are registered
+        working-directory: foundation
+        run: php artisan route:list | grep -q 'poland.dashboard'
+
+      # Rates are still sourced from secondary publications. This asserts the
+      # engine SAYS so rather than asserting that they are fine.
+      - name: Unverified rates are reported, not hidden
+        working-directory: foundation
+        run: |
+          if php artisan poland:rate-provenance --todo; then
+            echo "Every rate is marked official. Update docs/OPEN_ITEMS.md and this job."
+            exit 1
+          fi
+          echo "Unverified rates correctly reported."

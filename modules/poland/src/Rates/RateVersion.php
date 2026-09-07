@@ -14,26 +14,58 @@ use RuntimeException;
  */
 final class RateVersion
 {
-    /** @param array<string,mixed> $data */
+    /**
+     * @param array<string,mixed> $data
+     * @param array<string,string> $meanings key => what the value means and how it is derived
+     */
     public function __construct(
         public readonly string $table,
+        public readonly string $version,
         public readonly Period $effectiveFrom,
         public readonly ?Period $effectiveTo,
+        public readonly RateProvenance $provenance,
         public readonly array $data,
+        public readonly array $meanings = [],
     ) {
     }
 
     /** @param array<string,mixed> $row */
     public static function fromArray(string $table, array $row): self
     {
+        foreach (['version', 'effective_from', 'provenance'] as $required) {
+            if (! array_key_exists($required, $row)) {
+                throw new RuntimeException(sprintf(
+                    'Rate table "%s" has a version missing "%s". Every rate version must carry '
+                    .'its own version identifier, its effective period and its provenance — a rate '
+                    .'nobody can trace is a rate nobody can defend.',
+                    $table,
+                    $required,
+                ));
+            }
+        }
+
         return new self(
             $table,
+            (string) $row['version'],
             Period::parse((string) $row['effective_from']),
             isset($row['effective_to']) && $row['effective_to'] !== null
                 ? Period::parse((string) $row['effective_to'])
                 : null,
+            RateProvenance::fromArray((array) $row['provenance']),
             $row,
+            (array) ($row['meanings'] ?? []),
         );
+    }
+
+    /** What a value in this version means, and how it is derived. */
+    public function meaning(string $key): ?string
+    {
+        return $this->meanings[$key] ?? null;
+    }
+
+    public function isFitForFiling(): bool
+    {
+        return $this->provenance->status->fitForFiling();
     }
 
     public function covers(Period $period): bool
@@ -75,19 +107,45 @@ final class RateVersion
 
     public function source(): string
     {
-        return (string) ($this->data['source'] ?? 'unspecified');
+        return $this->provenance->sourceDocument;
     }
 
-    public function verifiedOn(): ?string
+    public function verifiedOn(): string
     {
-        return isset($this->data['verified_on']) ? (string) $this->data['verified_on'] : null;
+        return $this->provenance->checkedOn;
     }
 
-    /** Human-readable provenance stamp attached to every reported figure. */
+    /**
+     * Human-readable provenance stamp attached to every reported figure.
+     *
+     * The verification status is part of the stamp rather than a separate
+     * field, so a figure can never be quoted without it.
+     */
     public function stamp(): string
     {
         $window = $this->effectiveFrom->toString().' — '.($this->effectiveTo?->toString() ?? 'obowiązuje');
 
-        return sprintf('%s [%s] źródło: %s', $this->table, $window, $this->source());
+        return sprintf(
+            '%s v%s [%s] · %s · źródło: %s%s',
+            $this->table,
+            $this->version,
+            $window,
+            $this->provenance->status->label(),
+            $this->provenance->sourceDocument,
+            $this->provenance->sourceUrl !== '' ? ' <'.$this->provenance->sourceUrl.'>' : '',
+        );
+    }
+
+    /** @return array<string,mixed> */
+    public function describe(): array
+    {
+        return [
+            'table' => $this->table,
+            'version' => $this->version,
+            'effective_from' => $this->effectiveFrom->toString(),
+            'effective_to' => $this->effectiveTo?->toString(),
+            'provenance' => $this->provenance,
+            'stamp' => $this->stamp(),
+        ];
     }
 }

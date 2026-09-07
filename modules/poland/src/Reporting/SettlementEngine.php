@@ -39,17 +39,31 @@ final class SettlementEngine
 
     private readonly DeadlineCalendar $deadlines;
 
-    public function __construct(private readonly RateRepository $rates)
-    {
+    /**
+     * @param bool $requireOfficialRates When true, a settlement using a rate
+     *        table that has not been verified against its official source is
+     *        REFUSED rather than produced with a warning. Production turns this
+     *        on; it is the mechanism that stops a figure sourced from the trade
+     *        press being handed to somebody as an amount to pay.
+     */
+    public function __construct(
+        private readonly RateRepository $rates,
+        private readonly bool $requireOfficialRates = false,
+    ) {
         $this->zus = new ZusCalculator($rates);
         $this->vat = new VatCalculator($rates);
         $this->pit = new PitCalculator($rates);
         $this->deadlines = new DeadlineCalendar($rates);
     }
 
-    public static function withDefaultRates(): self
+    public static function withDefaultRates(bool $requireOfficialRates = false): self
     {
-        return new self(RateRepository::default());
+        return new self(RateRepository::default(), $requireOfficialRates);
+    }
+
+    public function requiresOfficialRates(): bool
+    {
+        return $this->requireOfficialRates;
     }
 
     public function settle(TaxProfile $profile, Ledger $ledger, Period $period): MonthlyTaxReport
@@ -57,6 +71,11 @@ final class SettlementEngine
         $coverage = $this->rates->coverage($period);
         if (! $coverage['ok']) {
             throw \Poland\Rates\MissingRateException::for(implode(', ', $coverage['missing']), $period);
+        }
+
+        $unverified = $this->unverifiedTables($period);
+        if ($this->requireOfficialRates && $unverified !== []) {
+            throw \Poland\Rates\UnverifiedRateException::for($period, $unverified);
         }
 
         $sales = $ledger->salesFor($period);
@@ -121,6 +140,16 @@ final class SettlementEngine
 
         $notes[] = 'Podstawa odliczenia składek: '.$profile->deductionBasis->label().'.';
 
+        if ($unverified !== []) {
+            $warnings[] = sprintf(
+                'STAWKI NIEZWERYFIKOWANE URZĘDOWO (%s). Wartości pochodzą ze źródeł wtórnych i '
+                .'zostały skontrolowane arytmetycznie, ale nie potwierdzono ich w publikacji organu. '
+                .'Ten wynik nadaje się do orientacji, NIE do złożenia. Lista do sprawdzenia: '
+                .'php artisan poland:rate-provenance --todo',
+                implode(', ', array_keys($unverified)),
+            );
+        }
+
         if ($profile->pitRegime !== PitRegime::LumpSum && ! $ledger->hasAnyPurchases()) {
             $warnings[] = 'Wybrana forma opodatkowania rozlicza DOCHÓD, a w ewidencji nie ma żadnych '
                 .'kosztów. Wynik PIT jest górną granicą, nie kwotą do zapłaty.';
@@ -143,6 +172,8 @@ final class SettlementEngine
             $warnings,
             $isEstimate,
             $this->rateSources($period),
+            $this->rateProvenance($period),
+            $unverified === [],
         );
     }
 
@@ -321,14 +352,61 @@ final class SettlementEngine
     private function rateSources(Period $period): array
     {
         $sources = [];
+        foreach ($this->versionsFor($period) as $name => $version) {
+            $sources[$name] = $version->stamp();
+        }
+
+        return $sources;
+    }
+
+    /**
+     * The full provenance record of every rate version this settlement used.
+     *
+     * Stored with the settlement so it stays reproducible: rates change, and a
+     * settlement must remain defensible as it stood on the day it was made.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    private function rateProvenance(Period $period): array
+    {
+        $provenance = [];
+        foreach ($this->versionsFor($period) as $name => $version) {
+            $provenance[$name] = $version->describe();
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * Tables whose version for this period is not verified against an official
+     * source.
+     *
+     * @return array<string,\Poland\Rates\RateProvenance>
+     */
+    public function unverifiedTables(Period $period): array
+    {
+        $offending = [];
+        foreach ($this->versionsFor($period) as $name => $version) {
+            if (! $version->isFitForFiling()) {
+                $offending[$name] = $version->provenance;
+            }
+        }
+
+        return $offending;
+    }
+
+    /** @return array<string,\Poland\Rates\RateVersion> */
+    private function versionsFor(Period $period): array
+    {
+        $versions = [];
         foreach (RateRepository::TABLES as $name) {
             $table = $this->rates->table($name);
             if ($table->versions() === []) {
                 continue;
             }
-            $sources[$name] = $table->for($period)->stamp();
+            $versions[$name] = $table->for($period);
         }
 
-        return $sources;
+        return $versions;
     }
 }
