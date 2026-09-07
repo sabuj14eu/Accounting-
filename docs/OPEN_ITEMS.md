@@ -153,6 +153,35 @@ Recorded because they are the argument for the integration job in CI:
 None of these were visible to `php -l`, and none were visible to the engine's
 own test suite.
 
+## Shop Profit Intelligence — not built yet
+
+The analysis core in `shop-intelligence/` is built and tested (60 tests, 469
+assertions, 0 failures). Everything around it is not, and the list is short
+enough to be honest about:
+
+1. No user interface — the three pages exist as a design in
+   `shop-intelligence/docs/BANKING_UX.md` and as a text renderer, nothing else.
+2. No database, no migrations, nothing persists.
+3. No authentication, no users, no sessions. `.env.example` describes them.
+4. No importers: bank statement, card terminal, Glovo, Uber Eats, supplier
+   invoices, OCR — all currently a human typing figures into a constructor.
+5. No month close and no immutable snapshot. The rule is written down; there is
+   no table to enforce it in.
+6. Not deployed: no database created, no vhost, no systemd unit, no backup.
+7. **The 27 regression tests were derived from the specification body, not
+   transcribed from its §29 list.** Somebody must read §29 line by line against
+   `shop-intelligence/docs/REGRESSION_MAP.md` and report what is missing.
+   Overlap is not coverage.
+
+Every threshold in it is invented — target margin, stock tolerance, revenue and
+cost alert levels, the payout tolerance, the three-period baseline minimum. None
+came from this shop's data. `shop-intelligence/docs/` and
+`docs/FABLE_BRIEFING_2026-09-08.md` §5 list where I am most likely wrong.
+
+**Owner: whoever picks up the briefing. Proof required: a deployed application
+with its own database and its own login, and the §29 reconciliation written
+down.**
+
 ## Deliberately not done
 
 ### The SignalMesh navigation link (Phase 6)

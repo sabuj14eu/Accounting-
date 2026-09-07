@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-09-07 (seventh) — Shop Profit Intelligence, the analysis core
+
+A **second, separate application** in `shop-intelligence/`: a management
+analysis tool for the shop, sharing no database, no table, no session, no
+credential, no code and no network path with the accounting application or the
+trading system. Each keeps working when the other is offline.
+
+### The design decision underneath everything
+A number carries its evidence in the type system rather than in a label beside
+it on the screen. `EvidenceType` decides `Provenance` and `Certainty`, and
+nothing lets a caller set them. So the specification's worked example — a 5 000
+invoice settled 3 000 by bank and 2 000 by declared cash — comes out FULLY
+ALLOCATED with the two halves still distinguishable, and no rendering of it can
+read as "5 000 found in the bank".
+
+### Rules enforced mechanically rather than by convention
+- `ReviewFlag` refuses accusatory vocabulary in English and Polish, and refuses
+  to exist without innocent explanations. "Never assume theft" appears three
+  times in the specification; here it is one constructor.
+- `Total::describe()` renders a mixed figure's split in the same method that
+  computes the value, so there is no code path that prints the number alone.
+- `AiBoundary` enumerates all eleven forbidden AI actions and the regression
+  test loops over the enum: a new prohibition cannot be added without being
+  enforced, or deleted without a test failing.
+- `PriceReview` has no method that returns a new price; `AccountsComparison` has
+  no method that writes. Both absences are asserted by tests.
+
+### Added
+- `shop-intelligence/src/` — the framework-free analysis core, `Shop\`
+  namespace: truth primitives, allocations and match history, platform payout
+  reconciliation, recipes and stock reconciliation, cost entries and recurring
+  costs, management profit, channel and product margin, price review, cash
+  ledger, monitoring, loss ranking, monthly report and text renderer.
+- 27 numbered regression tests mapped in `docs/REGRESSION_MAP.md`, plus an
+  isolation suite.
+- `bin/check-shop-isolation.sh` — 10 mechanical checks for §28.
+- `bin/shop-demo` — a complete worked month with no database and no framework.
+- `docs/BANKING_UX.md` — what "work like a banking app" means as a design.
+- `docs/FABLE_BRIEFING_2026-09-08.md` — the handover.
+
+### Verified
+- 60 tests, 469 assertions, 0 failures, 0 errors, 0 skipped on PHP 8.4.19,
+  with `failOnWarning` and `failOnRisky` both on.
+- Isolation guard: 10 checks, 0 violations.
+
+### Known — say it before it is discovered
+No user interface, no database, no migrations, no authentication, no importers,
+no month-close storage, not deployed. The analysis core is real; everything
+around it is not built. The 27 regression tests were derived from the
+specification body rather than transcribed from its §29 list, and that
+reconciliation is the first item in the briefing.
+
 ## 2026-09-07 (sixth) — final release gate
 
 Recorded as `docs/RELEASE_RECORD_2026-09-07.md` with measured numbers.

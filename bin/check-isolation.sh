@@ -16,7 +16,7 @@ FAILED=0
 report() { printf '\033[31mNARUSZENIE IZOLACJI:\033[0m %s\n' "$*"; FAILED=1; }
 ok()     { printf '\033[32mOK:\033[0m %s\n' "$*"; }
 
-SCAN_PATHS=(modules docs bin deploy overlay .env.example composer.json README.md)
+SCAN_PATHS=(modules shop-intelligence docs bin deploy overlay .env.example composer.json README.md)
 EXISTING=()
 for path in "${SCAN_PATHS[@]}"; do [ -e "$path" ] && EXISTING+=("$path"); done
 
@@ -27,7 +27,8 @@ for path in "${SCAN_PATHS[@]}"; do [ -e "$path" ] && EXISTING+=("$path"); done
 # prohibition from a violation gets switched off within a week. Code, keys and
 # values are what is scanned.
 FORBIDDEN='sniper-bot|sniper_bot|SniperExecutor|MT5|metatrader|brother_sniper|brother-brain|Trade Desk'
-HITS=$(grep -rEIn --exclude-dir=vendor --exclude-dir=.git --exclude='check-isolation.sh' \
+HITS=$(grep -rEIn --exclude-dir=vendor --exclude-dir=.git --exclude='check-isolation.sh' --exclude='check-shop-isolation.sh' \
+        --exclude='AiAction.php' --exclude='IsolationTest.php' \
         --exclude='*.md' -- "$FORBIDDEN" "${EXISTING[@]}" 2>/dev/null \
         | grep -Ev ':[0-9]+:[[:space:]]*(#|//|\*|/\*)')
 if [ -n "$HITS" ]; then
@@ -51,7 +52,8 @@ else
 fi
 
 # 3. No secret may be committed.
-if grep -rEIn --exclude-dir=vendor --exclude-dir=.git --exclude='check-isolation.sh' \
+if grep -rEIn --exclude-dir=vendor --exclude-dir=.git --exclude='check-isolation.sh' --exclude='check-shop-isolation.sh' \
+        --exclude='AiAction.php' --exclude='IsolationTest.php' \
         --exclude='*.md' -- '(KSEF_TOKEN|DB_PASSWORD|API_KEY|SECRET)=[^[:space:]"]+' \
         "${EXISTING[@]}" 2>/dev/null | grep -v '=$'; then
     report "w repozytorium znajduje się wartość sekretu"

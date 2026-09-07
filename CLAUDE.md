@@ -96,6 +96,34 @@ SignalMesh trading platform.
   holiday calendar has no entry for the year, the report says the shift could
   not be applied rather than showing a date that might be a day early.
 
+## THE SECOND APPLICATION — SHOP PROFIT INTELLIGENCE
+
+`shop-intelligence/` is a **separate application** living in this repository: a
+management analysis tool for the shop (money reconciliation, stock and food
+cost, real profit). It is NOT the accounting service and the two share nothing —
+no database, no table, no session, no credential, no code, no network path.
+Each keeps working when the other is offline.
+
+Its own laws, which sit alongside the ten above rather than under them:
+- It never calculates official tax, never files anything, never touches KSeF,
+  and has no write path back to the accounting system. The only route between
+  them is an `AccountsSnapshot` somebody imports by hand, recorded with who and
+  from what; differences are compared and investigated, never auto-corrected.
+- Four provenance classes travel with every number — OFFICIAL ACCOUNTING FACT ·
+  ANALYTICAL ESTIMATE · USER DECLARATION · AI SUGGESTION — and ACTUAL, EXPECTED,
+  ESTIMATED and USER DECLARED are never summed without the split displayed.
+- A cash, stock or platform difference is REQUIRES REVIEW with innocent
+  explanations listed. `ReviewFlag` refuses accusatory vocabulary outright:
+  never assume theft, never name anyone.
+- AI may read, extract, classify, suggest, identify anomalies, explain and
+  summarise. The eleven forbidden actions are enumerated in `Shop\Ai\AiAction`
+  and every one of them is tested.
+- Three pages. Do not turn it into another ERP.
+
+Before every commit there: `../modules/poland/vendor/bin/phpunit -c phpunit.xml`
+and `./bin/check-shop-isolation.sh`. Read `shop-intelligence/README.md` and
+`shop-intelligence/docs/BANKING_UX.md` before touching it.
+
 ## HOW TO WORK HERE
 
 Findings first, then code. Small verified diffs over rewrites. Run
