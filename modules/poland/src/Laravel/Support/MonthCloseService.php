@@ -87,15 +87,15 @@ final class MonthCloseService
 
             $untrustworthy = $this->bank->untrustworthyStatements($profile, $period);
             if ($untrustworthy > 0) {
-                $caveats[] = new Caveat(
-                    'statement_did_not_balance',
-                    \Poland\Certainty\DataCertainty::RequiresReview,
-                    sprintf(
-                        '%d wyciągów nie zgadza się z saldem otwarcia i zamknięcia — '
-                        .'prawdopodobnie brakuje transakcji.',
-                        $untrustworthy,
-                    ),
-                    'Pobierz wyciąg ponownie i zaimportuj.',
+                $caveats[] = Caveat::bankStatementDidNotBalance($untrustworthy);
+            }
+
+            // Having transactions is not the same as having the whole month.
+            $coverage = $this->bank->coverage($profile, $period);
+            if ($coverage['status'] !== 'COMPLETE') {
+                $caveats[] = Caveat::bankStatementIncomplete(
+                    $period->label(),
+                    $coverage['covered'] ?? 'zakres nieustalony',
                 );
             }
 
@@ -114,8 +114,9 @@ final class MonthCloseService
             }
 
             return sprintf(
-                '%d transakcji w okresie%s',
+                '%d transakcji, pokrycie %s%s',
                 count($transactions),
+                $coverage['status'],
                 $duplicates > 0 ? sprintf(', %d możliwych duplikatów wyłączonych', $duplicates) : '',
             );
         });

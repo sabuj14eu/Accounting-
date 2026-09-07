@@ -158,7 +158,52 @@ final class FaInvoiceParser
             validationErrors: [],
             rootElement: $document->documentElement?->localName ?? 'unknown',
             namespace: $document->documentElement?->namespaceURI,
+            unknownElements: $this->unknownElements($xpath),
         );
+    }
+
+    /**
+     * Leaf elements this parser does not map.
+     *
+     * The parser is tolerant of schema evolution but must not be silent about
+     * it: a field a newer FA version adds shows up here, so somebody can see
+     * that the mapping is behind rather than discovering it through a wrong
+     * total months later.
+     *
+     * @return list<string>
+     */
+    private function unknownElements(DOMXPath $xpath): array
+    {
+        $known = [];
+        foreach (self::PATHS as $paths) {
+            foreach ($paths as $path) {
+                foreach (explode('/', $path) as $segment) {
+                    $known[$segment] = true;
+                }
+            }
+        }
+        foreach (self::RATE_TOTALS as [$net, $vat, $label]) {
+            $known[$net] = true;
+            if ($vat !== null) {
+                $known[$vat] = true;
+            }
+        }
+
+        $unknown = [];
+        $nodes = $xpath->query('//*[not(*)]');
+
+        foreach ($nodes ?? [] as $node) {
+            $name = $node->localName;
+            if ($name === null || isset($known[$name]) || isset($unknown[$name])) {
+                continue;
+            }
+            if (trim((string) $node->textContent) === '') {
+                continue;
+            }
+            $unknown[$name] = true;
+        }
+
+        return array_keys($unknown);
     }
 
     /**

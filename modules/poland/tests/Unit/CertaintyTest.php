@@ -88,6 +88,10 @@ final class CertaintyTest extends TestCase
             Caveat::newDocumentAfterReport('2026-08', 2),
             Caveat::unmatchedTransactions(3),
             Caveat::engineDisagreesWithInterpretation('ZUS 08/2026'),
+            Caveat::operationFailed('sync', 'timeout'),
+            Caveat::integrationDisabled('KSeF'),
+            Caveat::bankStatementIncomplete('sierpień 2026', '01.08 - 15.08'),
+            Caveat::bankStatementDidNotBalance(1),
         ] as $caveat) {
             self::assertNotNull($caveat->remedy, $caveat->code.' has no remedy');
             self::assertNotSame('', trim($caveat->message));
@@ -109,9 +113,89 @@ final class CertaintyTest extends TestCase
             Caveat::ratesUnverified('vat'),
         ]);
 
-        self::assertSame(DataCertainty::NotEnoughData, $report->certainty);
+        // Unverified rates are BLOCKED, not NOT ENOUGH DATA: no upload fixes
+        // them, and BLOCKED outranks everything the taxpayer can act on.
+        self::assertSame(DataCertainty::Blocked, $report->certainty);
         self::assertCount(1, $report->blocking());
         self::assertSame('rates_unverified', $report->blocking()[0]->code);
+    }
+
+    public function test_the_six_states_are_all_distinct(): void
+    {
+        // The audit's requirement: these are materially different and must never
+        // collapse into one status.
+        $labels = array_map(
+            static fn (DataCertainty $c): string => $c->englishLabel(),
+            DataCertainty::cases(),
+        );
+
+        self::assertSame(
+            ['CALCULATED', 'VERIFIED', 'REQUIRES REVIEW', 'NOT ENOUGH DATA', 'BLOCKED', 'FAILED'],
+            $labels,
+        );
+        self::assertCount(6, array_unique($labels));
+    }
+
+    public function test_blocked_is_not_missing_data_and_failed_is_not_blocked(): void
+    {
+        // NOT ENOUGH DATA: the taxpayer uploads a statement and it clears.
+        self::assertTrue(DataCertainty::NotEnoughData->isUserActionable());
+        self::assertFalse(DataCertainty::NotEnoughData->isSystemCondition());
+
+        // BLOCKED: nothing they upload changes an unverified rate table.
+        self::assertFalse(DataCertainty::Blocked->isUserActionable());
+        self::assertTrue(DataCertainty::Blocked->isSystemCondition());
+
+        // FAILED: something ran and broke — there is an error and a retry.
+        self::assertFalse(DataCertainty::Failed->isUserActionable());
+        self::assertTrue(DataCertainty::Failed->isSystemCondition());
+    }
+
+    public function test_a_system_condition_outranks_missing_data(): void
+    {
+        // Ten good signals must not hide one blocked dependency.
+        self::assertSame(
+            DataCertainty::Blocked,
+            DataCertainty::worst(
+                DataCertainty::Verified,
+                DataCertainty::NotEnoughData,
+                DataCertainty::Blocked,
+            ),
+        );
+
+        self::assertSame(
+            DataCertainty::Failed,
+            DataCertainty::worst(DataCertainty::Blocked, DataCertainty::Failed),
+        );
+    }
+
+    public function test_unverified_rates_are_blocked_not_merely_missing(): void
+    {
+        self::assertSame(DataCertainty::Blocked, Caveat::ratesUnverified('zus_social')->certainty);
+        self::assertSame(DataCertainty::Blocked, Caveat::ksefUnavailable()->certainty);
+        self::assertSame(DataCertainty::Blocked, Caveat::integrationDisabled('OCR')->certainty);
+    }
+
+    public function test_a_failed_operation_is_distinguished_from_a_blocked_one(): void
+    {
+        $failed = Caveat::operationFailed('KSeF sync', 'connection timed out');
+
+        self::assertSame(DataCertainty::Failed, $failed->certainty);
+        self::assertStringContainsString('To nie jest brak danych', $failed->remedy);
+    }
+
+    public function test_the_report_separates_what_the_user_can_fix(): void
+    {
+        $report = CertaintyReport::of([
+            Caveat::bankStatementMissing('sierpień 2026'),   // user can fix
+            Caveat::ratesUnverified('pit'),                  // operator must fix
+            Caveat::operationFailed('sync', 'timeout'),      // operator must fix
+        ]);
+
+        self::assertCount(1, $report->userActionable());
+        self::assertSame('bank_statement_missing', $report->userActionable()[0]->code);
+        self::assertCount(2, $report->systemConditions());
+        self::assertCount(3, $report->blocking());
     }
 
     public function test_only_invoice_read_is_an_allowed_scope(): void

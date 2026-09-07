@@ -76,6 +76,18 @@ text", and a PDF statement is not zero transactions. `docs/AUTOMATION.md` has
 the detail, including what is built and what still needs a network the build
 environment could not reach.
 
+## Audit
+
+`docs/PRODUCTION_AUDIT_2026-09-07.md` is the standing audit record: every
+finding, its disposition, the four real gaps that were closed, and which test
+covers which requirement. The governing principle it enforces:
+
+> **Missing data is not zero data.**
+
+An empty KSeF result, empty OCR output, a missing bank statement and unreadable
+document text all **throw**. None of them is ever read as evidence that nothing
+exists.
+
 ## Repository layout
 
 ```

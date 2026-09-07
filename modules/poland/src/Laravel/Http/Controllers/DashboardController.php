@@ -59,6 +59,7 @@ final class DashboardController
             'report' => $accountantReport?->report,
             'error' => $error,
             'closed' => $profile !== null && $this->reports->isClosed($profile, $period),
+            'integrations' => $this->integrationPanel($profile),
             'history' => $profile === null ? collect() : SettlementModel::query()
                 ->where('tax_profile_id', $profile->getKey())
                 ->orderByDesc('period')
@@ -151,6 +152,47 @@ final class DashboardController
         return redirect()
             ->route('poland.dashboard', ['period' => $validated['period']])
             ->with('status', 'Zapisano koszty za '.$validated['period'].'.');
+    }
+
+    /**
+     * What each external integration is actually doing.
+     *
+     * Shown on the dashboard so an unavailable production integration is never
+     * presented as working, and so an empty result can never be read as a
+     * statement about the taxpayer's records.
+     *
+     * @return list<\Poland\Certainty\IntegrationStatus>
+     */
+    private function integrationPanel(?TaxProfileModel $profile): array
+    {
+        $ksefReason = $profile !== null
+            ? app(\Poland\Laravel\Support\KsefIngestService::class)->unavailableReason($profile)
+            : null;
+
+        $unverified = [];
+        try {
+            $rates = app(\Poland\Rates\RateRepository::class);
+            foreach (\Poland\Rates\RateRepository::TABLES as $table) {
+                $versions = $rates->table($table)->versions();
+                foreach ($versions as $version) {
+                    if (! $version->isFitForFiling()) {
+                        $unverified[$table] = true;
+                        break;
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // A rate table that will not load is itself reported by the engine.
+        }
+
+        return \Poland\Certainty\IntegrationStatus::panel(
+            (bool) config('poland.ksef.transport_enabled', false),
+            (string) config('poland.ksef.transport', 'disabled'),
+            app(\Poland\Government\Contracts\TextExtractor::class)->isAvailable(),
+            $unverified === [],
+            implode(', ', array_keys($unverified)),
+            $ksefReason,
+        );
     }
 
     private function profileFor(Request $request): ?TaxProfileModel

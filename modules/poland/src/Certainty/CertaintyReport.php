@@ -38,12 +38,50 @@ final class CertaintyReport implements \JsonSerializable
         return $this->certainty->isFinal();
     }
 
-    /** @return list<Caveat> */
+    /**
+     * Caveats that stop the month being finalised.
+     *
+     * Includes BLOCKED and FAILED as well as NOT ENOUGH DATA — all three mean
+     * the figure is not final, they differ only in who can fix it.
+     *
+     * @return list<Caveat>
+     */
     public function blocking(): array
     {
         return array_values(array_filter(
             $this->caveats,
-            static fn (Caveat $c): bool => $c->certainty === DataCertainty::NotEnoughData,
+            static fn (Caveat $c): bool => in_array($c->certainty, [
+                DataCertainty::NotEnoughData,
+                DataCertainty::Blocked,
+                DataCertainty::Failed,
+            ], true),
+        ));
+    }
+
+    /**
+     * Caveats the taxpayer can clear themselves, separated from the ones that
+     * need an operator.
+     *
+     * Showing "upload the missing statement" next to "the rate tables are
+     * unverified" as one undifferentiated list sends people looking for a
+     * document that does not exist.
+     *
+     * @return list<Caveat>
+     */
+    public function userActionable(): array
+    {
+        return array_values(array_filter(
+            $this->caveats,
+            static fn (Caveat $c): bool => $c->certainty->isUserActionable(),
+        ));
+    }
+
+    /** @return list<Caveat> */
+    public function systemConditions(): array
+    {
+        return array_values(array_filter(
+            $this->caveats,
+            static fn (Caveat $c): bool => $c->certainty->isSystemCondition(),
         ));
     }
 

@@ -322,14 +322,19 @@ final class KsefIngestService
         bool $completed,
     ): void {
         $environment = $this->credentials($profile)?->environment ?? 'test';
+        $state = $this->state($profile);
+
+        // The advance rule lives in SyncCursor so it can be tested without a
+        // database: the mark moves only on a complete run, and a partial run
+        // keeps the OLD mark rather than clearing it.
+        $next = \Poland\Ksef\SyncCursor::resume(
+            $state['synced_through'] !== null ? new DateTimeImmutable($state['synced_through']) : null,
+            $state['cursor'],
+        )->after($through, $completed, $cursor);
 
         DB::table('pl_ksef_sync_state')->updateOrInsert(
             ['tax_profile_id' => $profile->getKey(), 'environment' => $environment],
-            [
-                // Only advance the high-water mark on a complete run. Advancing
-                // it after a partial one would skip whatever was not reached.
-                'synced_through' => $completed ? $through->format('Y-m-d H:i:s') : null,
-                'cursor' => $cursor,
+            $next->toArray() + [
                 'last_run_at' => now(),
                 'last_run_completed' => $completed,
                 'updated_at' => now(),

@@ -26,12 +26,46 @@ final class InterpretationBoundary
      * IS computing tax.
      */
     public const RESERVED_FOR_ENGINE = [
+        // ZUS
         'zus_total', 'zus_social', 'zus_health',
-        'pit_due', 'pit_base', 'pit_tax',
-        'vat_due', 'vat_output', 'vat_input',
-        'total_due', 'tax_base', 'contribution_base',
-        'rate', 'lump_sum_rate', 'exemption_limit',
+        // PIT
+        'pit_due', 'pit_base', 'pit_tax', 'pit_liability',
+        // VAT — including the surplus. A surplus is a claim on the tax office,
+        // and reading one off a letter would create a refund entitlement out of
+        // an interpretation.
+        'vat_due', 'vat_output', 'vat_input', 'vat_surplus', 'vat_payable',
+        // Totals and bases
+        'total_due', 'amount_due', 'tax_base', 'contribution_base',
+        // Rates
+        'rate', 'lump_sum_rate', 'tax_rate', 'exemption_limit',
+        // Deadlines the engine derives from statute and the working-day
+        // calendar. A date read off a letter is `stated_deadline` — evidence —
+        // and must never replace the computed one, or a misread digit becomes
+        // the date somebody pays by.
+        'payment_deadline', 'due_date', 'filing_deadline', 'advance_due_date',
     ];
+
+    /**
+     * Fields an interpretation MAY set: statements about the document, not
+     * conclusions about what is owed.
+     *
+     * Listed so the distinction is visible rather than implied. `stated_amount`
+     * is "the letter says 2 757,34"; `zus_total` is "you owe 2 757,34".
+     */
+    public const EVIDENCE_FIELDS = [
+        'stated_amount', 'stated_deadline', 'stated_period', 'stated_reference',
+        'authority', 'action', 'document_type', 'case_number', 'tax_period',
+        'counterparty', 'deadline_days', 'summary', 'classification',
+    ];
+
+    /**
+     * @param list<Suggestion> $suggestions
+     * @throws RuntimeException if any suggestion tries to set an engine-owned field
+     */
+    public static function isReserved(string $field): bool
+    {
+        return in_array($field, self::RESERVED_FOR_ENGINE, true);
+    }
 
     /**
      * @param list<Suggestion> $suggestions

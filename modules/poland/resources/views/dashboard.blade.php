@@ -228,6 +228,35 @@
         @endforeach
     @endif
 
+    {{-- Integration status: what is actually connected, stated so an empty
+         result can never read as a statement about the taxpayer's records. --}}
+    @if (!empty($integrations))
+        <div class="card">
+            <h2>Stan integracji</h2>
+            <table>
+                <thead><tr><th>Integracja</th><th>Status</th><th>Co to znaczy</th></tr></thead>
+                <tbody>
+                @foreach ($integrations as $integration)
+                    <tr>
+                        <td>{{ $integration->name }}</td>
+                        <td>
+                            <span class="pill {{ $integration->operational ? 'paid' : 'unpaid' }}">
+                                {{ $integration->status }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ $integration->detail }}
+                            @if ($integration->nextStep)
+                                <div class="basis">→ {{ $integration->nextStep }}</div>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+
     {{-- Data entry --}}
     <div class="card">
         <h2>Wprowadź dane</h2>

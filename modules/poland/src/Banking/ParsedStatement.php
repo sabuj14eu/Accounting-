@@ -57,6 +57,56 @@ final class ParsedStatement implements \JsonSerializable
         return $this->problems === [] && $this->balancesReconcile() !== false;
     }
 
+    /**
+     * Whether this statement covers a whole settlement month.
+     *
+     * "3 transactions imported" does not mean "all 3 transactions for August".
+     * A statement covering 1-15 August is not the month, and treating it as one
+     * understates costs exactly as silently as importing nothing.
+     *
+     * Returns null when the file states no period at all — unknown, which is
+     * neither complete nor incomplete and must not be reported as either.
+     *
+     * @return array{status: string, covered: string|null, complete: bool|null}
+     */
+    public function coverageOf(\Poland\Domain\Period $period): array
+    {
+        $from = $this->periodFrom;
+        $to = $this->periodTo;
+
+        if ($from === null || $to === null) {
+            return [
+                'status' => 'UNKNOWN',
+                'covered' => null,
+                'complete' => null,
+            ];
+        }
+
+        $monthStart = $period->firstDay();
+        $monthEnd = $period->lastDay()->setTime(23, 59, 59);
+
+        $covered = sprintf('%s - %s', $from->format('d.m.Y'), $to->format('d.m.Y'));
+
+        if ($to < $monthStart || $from > $monthEnd) {
+            return ['status' => 'OUTSIDE_PERIOD', 'covered' => $covered, 'complete' => false];
+        }
+
+        // Complete means the statement reaches both ends of the month. A
+        // statement that starts on the 3rd may simply have had no activity on
+        // the 1st and 2nd — which is why MT940 and camt opening balances
+        // matter, and why a format without them can only ever be UNKNOWN.
+        $startsEarlyEnough = $from <= $monthStart
+            || ($this->openingBalance !== null && $from->format('Y-m') === $period->toString());
+        $endsLateEnough = $to >= $period->lastDay()->setTime(0, 0)
+            || ($this->closingBalance !== null && $to->format('Y-m') === $period->toString());
+
+        if ($startsEarlyEnough && $endsLateEnough) {
+            return ['status' => 'COMPLETE', 'covered' => $covered, 'complete' => true];
+        }
+
+        return ['status' => 'PARTIAL', 'covered' => $covered, 'complete' => false];
+    }
+
     public function jsonSerialize(): array
     {
         return [
@@ -69,6 +119,7 @@ final class ParsedStatement implements \JsonSerializable
             'count' => $this->count(),
             'balances_reconcile' => $this->balancesReconcile(),
             'is_trustworthy' => $this->isTrustworthy(),
+            'has_balances' => $this->openingBalance !== null && $this->closingBalance !== null,
             'problems' => $this->problems,
             'transactions' => $this->transactions,
         ];

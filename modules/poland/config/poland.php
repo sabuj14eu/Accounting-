@@ -44,6 +44,16 @@ return [
      */
     'ksef' => [
         'enabled' => (bool) env('KSEF_ENABLED', false),
+
+        /*
+         * The transport gate. A failed production connection must say
+         * "KSeF synchronization unavailable" — never "no invoices found",
+         * which is a claim about the taxpayer's month rather than the system's
+         * state. Production may not select the fake transport at all; the gate
+         * throws rather than degrading.
+         */
+        'transport_enabled' => (bool) env('KSEF_TRANSPORT_ENABLED', false),
+        'transport' => env('KSEF_TRANSPORT', 'disabled'),   // disabled | fake | real
         'environment' => env('KSEF_ENVIRONMENT', 'test'),
         'base_url' => env('KSEF_BASE_URL'),
         'nip' => env('KSEF_NIP'),

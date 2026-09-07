@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-09-07 (fifth) — production audit response
+
+Recorded in full as `docs/PRODUCTION_AUDIT_2026-09-07.md`. Four real gaps closed;
+everything the audit told us to keep is now pinned by a test that fails if it is
+weakened.
+
+### Schema
+| Migration | Change |
+|---|---|
+| `2026_09_07_001200` | `pl_bank_statements`: `completeness`, `covered_range`, `has_balances` |
+
+### Gaps closed
+- **§13** — `BLOCKED` and `FAILED` added as distinct certainty states, ranked
+  above NOT ENOUGH DATA. Unverified rates and an unavailable KSeF reclassified
+  from NOT ENOUGH DATA to BLOCKED: no upload fixes them.
+- **§10** — `vat_surplus`, `payment_deadline` and `due_date` were NOT protected.
+  A surplus read off a letter would have created a refund entitlement; a misread
+  digit would have become the date somebody pays by. Added, along with six more
+  and an explicit `EVIDENCE_FIELDS` list.
+- **§16** — statement completeness was unknown, so "3 transactions imported"
+  silently read as "all of August". COMPLETE / PARTIAL / UNKNOWN / OUTSIDE_PERIOD.
+- **§20** — nothing stopped production selecting a fake transport. `TransportGate`
+  now throws; a silent fallback would turn "no connection" into "no invoices".
+- **§22** — dashboard integration panel: NOT CONNECTED / NOT AVAILABLE /
+  DISABLED / NOT VERIFIED, each with what it means and the next step.
+
+### Added
+- `MISSING_FIELD` marker (§3) so an absent net amount can never render as blank
+  or 0,00; unknown XML elements recorded rather than discarded.
+- `SyncCursor` — the advance rule extracted so it is testable without a database.
+- `TransactionLifecycle` — both documented paths as states; nothing is deleted.
+- Four regression suites: `CredentialSecurityTest` (11), `EngineBoundaryTest`
+  (46), `ValueComparisonTest` (19), `IntegrationStatusTest` (12),
+  `SyncSafetyTest` (13).
+
+### Verified
+289 tests, 790 assertions, green on PHP 8.2-8.5. Full stack re-run on 8.5 with
+296 migrations; month close now correctly reports BLOCKED rather than NOT
+ENOUGH DATA.
+
 ## 2026-09-07 (fourth) — automation: KSeF, bank, government, reconciliation
 
 ### Schema

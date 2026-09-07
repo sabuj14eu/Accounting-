@@ -68,7 +68,17 @@ final class BankImportService
             ));
         }
 
-        return DB::transaction(function () use ($profile, $parsed, $parser, $filename, $checksum, $importedBy): array {
+        // Coverage is judged against the month the statement itself claims to
+        // cover, so a part-month export is recorded as PARTIAL at import time
+        // rather than being discovered later, or not at all.
+        $coverage = $parsed->periodTo !== null
+            ? $parsed->coverageOf(Period::of(
+                (int) $parsed->periodTo->format('Y'),
+                (int) $parsed->periodTo->format('n'),
+            ))
+            : ['status' => 'UNKNOWN', 'covered' => null, 'complete' => null];
+
+        return DB::transaction(function () use ($profile, $parsed, $parser, $filename, $checksum, $importedBy, $coverage): array {
             $statement = BankStatementModel::create([
                 'tax_profile_id' => $profile->getKey(),
                 'filename' => $filename,
@@ -79,6 +89,9 @@ final class BankImportService
                 'opening_balance' => $parsed->openingBalance?->jsonSerialize(),
                 'closing_balance' => $parsed->closingBalance?->jsonSerialize(),
                 'balances_reconcile' => $parsed->balancesReconcile(),
+                'has_balances' => $parsed->openingBalance !== null && $parsed->closingBalance !== null,
+                'completeness' => $coverage['status'],
+                'covered_range' => $coverage['covered'],
                 'problems' => $parsed->problems,
                 'transaction_count' => $parsed->count(),
                 'checksum' => $checksum,
@@ -169,6 +182,7 @@ final class BankImportService
                     'duplicates' => $duplicates,
                     'possible_duplicates' => $possibleDuplicates,
                     'balances_reconcile' => $parsed->balancesReconcile(),
+                    'completeness' => $coverage['status'],
                     'problems' => count($parsed->problems),
                 ],
                 $parsed->isTrustworthy() ? 'ok' : 'partial',
@@ -202,6 +216,47 @@ final class BankImportService
             ->get()
             ->map(fn (BankTransactionModel $row): BankTransaction => $row->toDomain())
             ->all();
+    }
+
+    /**
+     * Whether the month's bank data is complete, and if not, why.
+     *
+     * Reports UNKNOWN rather than guessing when no statement states a period —
+     * unknown coverage is not the same as complete coverage, and only one of
+     * them justifies calling a financial result final.
+     *
+     * @return array{status: string, covered: string|null, statements: int}
+     */
+    public function coverage(TaxProfileModel $profile, Period $period): array
+    {
+        $statements = BankStatementModel::query()
+            ->where('tax_profile_id', $profile->getKey())
+            ->where(function ($q) use ($period): void {
+                $q->whereBetween('period_from', [$period->firstDay(), $period->lastDay()])
+                    ->orWhereBetween('period_to', [$period->firstDay(), $period->lastDay()]);
+            })
+            ->get();
+
+        if ($statements->isEmpty()) {
+            return ['status' => 'MISSING', 'covered' => null, 'statements' => 0];
+        }
+
+        // The best coverage any single statement achieved. Stitching several
+        // partial statements into a claim of completeness would need gap
+        // analysis this does not do, so it does not claim it.
+        $best = 'UNKNOWN';
+        $covered = null;
+        foreach ($statements as $statement) {
+            if ($statement->completeness === 'COMPLETE') {
+                return ['status' => 'COMPLETE', 'covered' => $statement->covered_range, 'statements' => $statements->count()];
+            }
+            if ($statement->completeness === 'PARTIAL' && $best !== 'PARTIAL') {
+                $best = 'PARTIAL';
+                $covered = $statement->covered_range;
+            }
+        }
+
+        return ['status' => $best, 'covered' => $covered, 'statements' => $statements->count()];
     }
 
     /** Transactions flagged as possibly the same payment imported twice. */

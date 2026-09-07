@@ -36,7 +36,10 @@ final class Caveat implements \JsonSerializable
     {
         return new self(
             'ksef_unavailable',
-            DataCertainty::NotEnoughData,
+            // BLOCKED: a production dependency is not connected. Distinct from
+            // "no invoices this month", which is what a silent empty result
+            // would look like.
+            DataCertainty::Blocked,
             'Synchronizacja z KSeF niedostępna — faktury zakupowe mogą być niekompletne.'
             .($reason !== null ? ' Powód: '.$reason : ''),
             'Sprawdź konfigurację i token KSeF, potem uruchom synchronizację ponownie.',
@@ -47,7 +50,9 @@ final class Caveat implements \JsonSerializable
     {
         return new self(
             'rates_unverified',
-            DataCertainty::NotEnoughData,
+            // BLOCKED, not NOT ENOUGH DATA: the taxpayer cannot fix this by
+            // uploading anything. It needs somebody to read the ZUS announcement.
+            DataCertainty::Blocked,
             'Wyliczenie podatku zablokowane — wymagana weryfikacja stawek w źródłach '
             .'urzędowych ('.$tables.').',
             'php artisan poland:rate-provenance --todo',
@@ -77,6 +82,69 @@ final class Caveat implements \JsonSerializable
                 $count,
             ),
             'Przejrzyj nowe dokumenty i wygeneruj nową wersję raportu.',
+        );
+    }
+
+    /** An operation ran and broke — there is an error to diagnose and a retry. */
+    public static function operationFailed(string $operation, string $error): self
+    {
+        return new self(
+            'operation_failed',
+            DataCertainty::Failed,
+            sprintf('Operacja "%s" zakończyła się błędem: %s', $operation, $error),
+            'Sprawdź logi i uruchom ponownie. To nie jest brak danych — coś się wykonało i nie zadziałało.',
+        );
+    }
+
+    /** A production integration is deliberately off. */
+    public static function integrationDisabled(string $integration): self
+    {
+        return new self(
+            'integration_disabled',
+            DataCertainty::Blocked,
+            sprintf(
+                'Integracja "%s" jest wyłączona. To NIE znaczy, że nie ma dokumentów — '
+                .'znaczy, że system ich nie widzi.',
+                $integration,
+            ),
+            'Włącz i skonfiguruj integrację, albo wprowadź dokumenty ręcznie.',
+        );
+    }
+
+    /**
+     * The statement covers only part of the month.
+     *
+     * "3 transactions imported" does not mean "all 3 transactions for August",
+     * and treating a part-month statement as the whole month understates costs
+     * exactly as silently as importing none at all.
+     */
+    public static function bankStatementIncomplete(string $period, string $covered): self
+    {
+        return new self(
+            'bank_statement_incomplete',
+            DataCertainty::NotEnoughData,
+            sprintf(
+                'DANE BANKOWE NIEKOMPLETNE: wyciąg obejmuje tylko część okresu %s (%s). '
+                .'Liczba zaimportowanych transakcji nie oznacza kompletu transakcji miesiąca.',
+                $period,
+                $covered,
+            ),
+            'Wgraj wyciąg obejmujący cały miesiąc.',
+        );
+    }
+
+    /** Opening and closing balances do not add up — rows are probably missing. */
+    public static function bankStatementDidNotBalance(int $count): self
+    {
+        return new self(
+            'bank_statement_requires_review',
+            DataCertainty::RequiresReview,
+            sprintf(
+                'WYCIĄG WYMAGA PRZEGLĄDU: %d wyciągów nie zgadza się z saldem otwarcia '
+                .'i zamknięcia — prawdopodobnie brakuje transakcji.',
+                $count,
+            ),
+            'Pobierz wyciąg ponownie z bankowości i zaimportuj.',
         );
     }
 
