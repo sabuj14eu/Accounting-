@@ -44,6 +44,21 @@ The tax engine needs nothing but PHP 8.2+. No database, no framework, no queue
 Inside the ERP the same engine backs a web dashboard
 (`/poland`) and `php artisan poland:report 2026-08 --sales=22150`.
 
+## Deploying it
+
+One command on a fresh Ubuntu/Debian server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sabuj14eu/Accounting-/claude/poland-accounting-app-pijnfm/bin/deploy-contabo.sh \
+  | sudo DOMAIN=account.signalmesh.dev bash
+```
+
+It installs PHP 8.5, MariaDB, Redis and nginx, creates its own database and
+system user, installs the ERP and this module, migrates, issues TLS, starts the
+queue and scheduler, creates an admin account and prints the URL and password.
+Nothing belonging to the trading platform is touched. Details and the manual
+route: `docs/DEPLOYMENT.md`.
+
 ## Repository layout
 
 ```
@@ -56,8 +71,11 @@ modules/poland/          The Poland tax and compliance layer (a Composer package
   src/Laravel/           Service provider, models, controller, artisan commands
   bin/pl-tax             Standalone CLI
   tests/                 85 tests
+bin/deploy-contabo.sh      One-shot production install on a fresh server
 bin/install-foundation.sh  Installs the Liberu ERP and mounts this module
 bin/check-isolation.sh     Fails if a trading dependency appears
+bin/data-safety-drill.sh   Backup, restore, and prove the records survived
+bin/enable-email-verification.sh  Opt-in email confirmation for new accounts
 deploy/                    nginx, systemd units, verified backup script
 docs/                      Architecture, isolation, deployment, roadmap
 ```

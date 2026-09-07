@@ -34,7 +34,13 @@ final class AuditRecorder
 
     public const PROFILE_CHANGED = 'profile.changed';
 
+    public const REPORT_GENERATED = 'report.generated';
+
+    public const PAYMENT_RECORDED = 'payment.recorded';
+
     public const PERIOD_CLOSED = 'period.closed';
+
+    public const PERIOD_REOPENED = 'period.reopened';
 
     /**
      * @param array<string,mixed>|null $old

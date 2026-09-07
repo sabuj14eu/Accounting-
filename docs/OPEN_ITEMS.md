@@ -74,6 +74,12 @@ reference through `markFiled()`.
 `UnavailableExchangeRateProvider` refuses rather than defaulting. A missing rate
 is not 1.0 and is not yesterday's rate. NBP adapter is Phase 2.
 
+### Backup and restore have not been drilled on a real database
+`bin/data-safety-drill.sh` and `deploy/backup.sh` are written and
+syntax-checked, but this environment has no MariaDB server, so neither has ever
+restored anything. **Run the drill on the Contabo box before going live** — it
+must exit 0.
+
 ### Multi-rate ryczałt is supported by the engine but not by data entry
 `FiscalSalesReport` lines carry an optional per-line ryczałt rate and
 `PitCalculator` apportions deductions proportionally (tested). The dashboard and

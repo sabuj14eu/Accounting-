@@ -13,8 +13,10 @@ use Poland\Domain\Period;
 use Poland\Laravel\Models\SalesReportModel;
 use Poland\Laravel\Models\SettlementModel;
 use Poland\Laravel\Models\TaxProfileModel;
+use Poland\Laravel\Support\MonthlyReportService;
 use Poland\Laravel\Support\SettlementRecorder;
 use Poland\Rates\MissingRateException;
+use Poland\Rates\UnverifiedRateException;
 
 /**
  * The taxpayer-facing screen: enter the month's cash-register total, see what
@@ -22,19 +24,25 @@ use Poland\Rates\MissingRateException;
  */
 final class DashboardController
 {
-    public function __construct(private readonly SettlementRecorder $recorder) {}
+    public function __construct(
+        private readonly SettlementRecorder $recorder,
+        private readonly MonthlyReportService $reports,
+    ) {}
 
     public function show(Request $request): View
     {
         $profile = $this->profileFor($request);
         $period = $this->periodFrom($request);
 
-        $report = null;
+        $accountantReport = null;
         $error = null;
 
         if ($profile !== null) {
             try {
-                $report = $this->recorder->settle($profile, $period);
+                $accountantReport = $this->reports->preview($profile, $period);
+            } catch (UnverifiedRateException $e) {
+                // Production requires verified rates. Show why rather than a 500.
+                $error = $e->getMessage();
             } catch (MissingRateException $e) {
                 $error = $e->getMessage();
             } catch (\InvalidArgumentException $e) {
@@ -47,8 +55,10 @@ final class DashboardController
         return view('poland::dashboard', [
             'profile' => $profile,
             'period' => $period,
-            'report' => $report,
+            'accountantReport' => $accountantReport,
+            'report' => $accountantReport?->report,
             'error' => $error,
+            'closed' => $profile !== null && $this->reports->isClosed($profile, $period),
             'history' => $profile === null ? collect() : SettlementModel::query()
                 ->where('tax_profile_id', $profile->getKey())
                 ->orderByDesc('period')
@@ -103,6 +113,44 @@ final class DashboardController
         return redirect()
             ->route('poland.dashboard', ['period' => $validated['period']])
             ->with('status', 'Zapisano sprzedaż za '.$validated['period'].'.');
+    }
+
+    /** Record the month's deductible costs and input VAT. */
+    public function storeCosts(Request $request): RedirectResponse
+    {
+        $profile = $this->profileFor($request);
+        if ($profile === null) {
+            return redirect()->route('poland.dashboard')
+                ->withErrors(['profile' => 'Najpierw skonfiguruj profil podatnika.']);
+        }
+
+        $validated = $request->validate([
+            'period' => ['required', 'regex:/^\d{4}-\d{2}$/'],
+            'costs_net' => ['required', 'string', 'max:32'],
+            'input_vat' => ['nullable', 'string', 'max:32'],
+            'document_count' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->recorder->recordPurchases(
+                $profile,
+                Period::parse($validated['period']),
+                Money::parse($validated['costs_net']),
+                Money::parse($validated['input_vat'] ?? '0'),
+                (int) ($validated['document_count'] ?? 0),
+                $validated['note'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('poland.dashboard', ['period' => $validated['period']])
+                ->withErrors(['costs_net' => $e->getMessage()])
+                ->withInput();
+        }
+
+        return redirect()
+            ->route('poland.dashboard', ['period' => $validated['period']])
+            ->with('status', 'Zapisano koszty za '.$validated['period'].'.');
     }
 
     private function profileFor(Request $request): ?TaxProfileModel

@@ -22,6 +22,53 @@ declare(strict_types=1);
 return [
     'versions' => [
         [
+            // Needed so JANUARY 2025 can be settled at all: January belongs to
+            // the contribution year that began in February 2024. Without this
+            // version the engine (correctly) refuses that month, which is how
+            // the gap was found.
+            'version' => '2024-02.1',
+            'contribution_year' => '2024/2025',
+            'effective_from' => '2024-02',
+            'effective_to' => '2025-01',
+
+            'lump_sum_reference_wage' => '7767.85',
+            'lump_sum_bands' => [
+                ['revenue_up_to' => '60000.00', 'monthly' => '419.46', 'base_percent_of_reference' => 60],
+                ['revenue_up_to' => '300000.00', 'monthly' => '699.11', 'base_percent_of_reference' => 100],
+                ['revenue_up_to' => null, 'monthly' => '1258.39', 'base_percent_of_reference' => 180],
+            ],
+
+            'scale_rate' => 0.09,
+            'flat_rate' => 0.049,
+            'minimum_monthly' => '381.78',
+            'minimum_base' => '4242.00',
+            'flat_tax_deduction_limit_annual' => '11600.00',
+
+            'meanings' => [
+                'lump_sum_reference_wage' => 'Przeciętne wynagrodzenie w sektorze przedsiębiorstw w IV kwartale 2023 r. (7 767,85 zł), komunikat Prezesa GUS z 22 stycznia 2024 r.',
+                'lump_sum_bands' => 'Progi składki zdrowotnej na ryczałcie w roku składkowym 2024/2025.',
+                'scale_rate' => '9% dochodu miesiąca poprzedzającego — skala podatkowa.',
+                'flat_rate' => '4,9% dochodu miesiąca poprzedzającego — podatek liniowy.',
+                'minimum_monthly' => 'Składka minimalna: 9% minimalnego wynagrodzenia obowiązującego 1 lutego 2024 r. (4 242 zł).',
+                'minimum_base' => 'Minimalne wynagrodzenie na początek roku składkowego 2024/2025.',
+                'flat_tax_deduction_limit_annual' => 'Roczny limit odliczenia składki zdrowotnej na podatku liniowym w 2024 r.',
+            ],
+
+            'provenance' => [
+                'status' => 'secondary',
+                'source_document' => 'Ustawa o świadczeniach opieki zdrowotnej, art. 79-81; komunikat Prezesa GUS z 22 stycznia 2024 r. o przeciętnym wynagrodzeniu w IV kwartale 2023 r. (7 767,85 zł)',
+                'source_url' => 'https://ksiegowosc.infor.pl/zus-kadry/skladki/6441667,skladka-zdrowotna-2024-ryczalt.html',
+                'official_source_url' => 'https://www.zus.pl/baza-wiedzy/skladki-wskazniki-odsetki/skladki/wysokosc-skladki-na-ubezpieczenie-zdrowotne',
+                'published_on' => '2024-01-22',
+                'checked_on' => '2026-09-07',
+                'checked_by' => 'claude-code — kontrola arytmetyczna',
+                'notes' => 'Dodane wyłącznie po to, by styczeń 2025 dał się rozliczyć — rok składkowy '
+                    .'trwa od lutego do stycznia. Miesiące roku 2024 i tak nie są rozliczalne, bo '
+                    .'tabela zus_social zaczyna się w styczniu 2025. Każdy próg odtwarza się jako '
+                    .'9% podanego procentu wynagrodzenia odniesienia.',
+            ],
+        ],
+        [
             'version' => '2025-02.1',
             'contribution_year' => '2025/2026',
             'effective_from' => '2025-02',

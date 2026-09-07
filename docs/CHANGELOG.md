@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-09-07 (third) — pre-live: report, checklist, deployment
+
+### Schema
+| Migration | Change |
+|---|---|
+| `2026_09_07_000600` | `pl_payment_obligations` — the monthly payment checklist, unique per (profile, period, kind) |
+| `2026_09_07_000700` | `pl_report_versions` — immutable numbered snapshots of every report ever generated |
+
+Migration note: both additive. `pl_report_versions` refuses updates (except
+close/reopen) and deletes at the model level.
+
+### Added
+- **Monthly accountant report** in eight sections — summary, ZUS, PIT, VAT,
+  financial result, payment checklist, provenance, warnings — laid out for
+  browser, print and PDF (`@page` A4, print stylesheet).
+- **Dashboard rebuilt** to answer "what do I have to pay this month?" first.
+- **Payment checklist** with three states. NOTHING TO PAY is distinct from a
+  zero-amount UNPAID, and a VAT surplus is stored in its own column so it can
+  never be rendered as an amount due. Payments record date, amount, reference
+  and notes; a shortfall against what was owed stays visible.
+- **Financial result** for the month and year to date, with the income figure
+  labelled an upper bound whenever no cost register exists.
+- **Month close and report versioning.** Every generation writes an immutable
+  numbered version with a checksum. Recomputing writes version n+1 and never
+  touches n. Closing freezes the month; reopening needs a reason and is audited.
+- **Cost and input-VAT entry**, so skala/liniowy can stop being an upper bound.
+- 2024/2025 health contribution year, without which January 2025 could not be
+  settled at all. All 24 months of 2025–2026 are now settleable.
+- `bin/deploy-contabo.sh` — one-command production install.
+- `bin/data-safety-drill.sh` — backup, restore, compare row counts, report
+  checksums and audit events; refuses to pass on any mismatch.
+- `bin/enable-email-verification.sh` — opt-in, idempotent, anchor-safe.
+- `docs/RELEASE_CHECKLIST.md` — every gate with its current state.
+
+### Verified
+- 130 tests, 346 assertions, green on PHP 8.2–8.5.
+- Full stack on PHP 8.5: 289 migrations, 9 routes, report generated at v1, ZUS
+  paid, regenerated at v2 with the payment preserved, v1 proven immutable and
+  undeletable, closed month refusing regeneration, reopen requiring a reason.
+- All eight report sections and the NOT VERIFIED banner present in the rendered
+  HTML.
+
+### Known
+- Rate verification against official sources is still blocked by network policy.
+  Unchanged and still the one thing between this and real tax payment.
+
 ## 2026-09-07 (later) — P0 validation
 
 ### Schema

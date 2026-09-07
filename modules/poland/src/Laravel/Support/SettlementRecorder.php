@@ -136,6 +136,41 @@ final class SettlementRecorder
         });
     }
 
+    /** Record the month's deductible costs and input VAT. */
+    public function recordPurchases(
+        TaxProfileModel $profile,
+        Period $period,
+        Money $costsNet,
+        Money $inputVat,
+        int $documentCount = 0,
+        ?string $note = null,
+    ): \Poland\Laravel\Models\PurchaseSummaryModel {
+        $summary = \Poland\Laravel\Models\PurchaseSummaryModel::updateOrCreate(
+            ['tax_profile_id' => $profile->getKey(), 'period' => $period->toString()],
+            [
+                'deductible_costs_net' => $costsNet->jsonSerialize(),
+                'deductible_input_vat' => $inputVat->jsonSerialize(),
+                'document_count' => $documentCount,
+                'note' => $note,
+            ],
+        );
+
+        $this->audit->record(
+            AuditRecorder::PURCHASES_RECORDED,
+            (int) $profile->getKey(),
+            $summary,
+            $period->toString(),
+            null,
+            [
+                'costs_net' => $costsNet->jsonSerialize(),
+                'input_vat' => $inputVat->jsonSerialize(),
+                'documents' => $documentCount,
+            ],
+        );
+
+        return $summary;
+    }
+
     /** Compute a month and store the result, without claiming it was filed. */
     public function settle(TaxProfileModel $profile, Period $period): MonthlyTaxReport
     {

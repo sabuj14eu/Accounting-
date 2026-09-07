@@ -1,71 +1,237 @@
 @php
-    use Poland\Domain\Enums\PitRegime;
+    use Poland\Reporting\ObligationKind;
+    use Poland\Reporting\PaymentStatus;
+    $r = $accountantReport ?? null;
 @endphp
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rozliczenie miesięczne — {{ $period->label() }}</title>
+    <title>Co muszę zapłacić — {{ $period->label() }}</title>
     <style>
-        :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --ink:#15181d; --muted:#5d6672;
-                --line:#e2e5ea; --warn:#b45309; --warn-bg:#fff7ed; --bad:#b91c1c; --bad-bg:#fef2f2;
-                --ok:#15803d; }
-        @media (prefers-color-scheme: dark) {
-            :root { --bg:#101318; --card:#181c22; --ink:#e8eaee; --muted:#9aa4b2; --line:#272c34;
-                    --warn:#fbbf24; --warn-bg:#2a2113; --bad:#f87171; --bad-bg:#2a1616; --ok:#4ade80; }
-        }
-        * { box-sizing: border-box; }
-        body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
-        .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
-        h1 { font-size: 1.5rem; margin: 0 0 4px; }
-        .sub { color: var(--muted); margin: 0 0 24px; }
-        .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-                padding: 20px; margin-bottom: 20px; }
-        .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-        .tile { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
-        .tile .k { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
-        .tile .v { font-size: 1.45rem; font-weight: 650; margin-top: 4px; font-variant-numeric: tabular-nums; }
-        .tile .d { color: var(--muted); font-size: .8rem; margin-top: 4px; }
-        .tile.total { border-color: var(--ink); }
-        .note, .warn { border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; font-size: .9rem; }
-        .warn { background: var(--warn-bg); border: 1px solid var(--warn); color: var(--warn); }
-        .note { background: var(--card); border: 1px solid var(--line); color: var(--muted); }
-        .bad { background: var(--bad-bg); border: 1px solid var(--bad); color: var(--bad); }
-        table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-        th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
-        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-        form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-        label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
-        input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
-                        background: var(--card); color: var(--ink); font: inherit; }
-        button { padding: 9px 16px; border: 0; border-radius: 6px; background: var(--ink);
-                 color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
-        details { margin-top: 8px; }
-        summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
-        .basis { color: var(--muted); font-size: .8rem; }
-        .disclaimer { border: 1px dashed var(--line); border-radius: 8px; padding: 14px;
-                      color: var(--muted); font-size: .85rem; }
+        :root { color-scheme: light dark;
+            --bg:#f5f6f8; --card:#fff; --ink:#14171c; --muted:#5b6472; --line:#dfe3e9;
+            --pay:#b91c1c; --pay-bg:#fef2f2; --ok:#15803d; --ok-bg:#f0fdf4;
+            --warn:#92400e; --warn-bg:#fffbeb; --alarm:#7f1d1d; --alarm-bg:#fee2e2; }
+        @media (prefers-color-scheme: dark) { :root {
+            --bg:#0f1216; --card:#171b21; --ink:#e9ebef; --muted:#9aa4b2; --line:#262b33;
+            --pay:#fca5a5; --pay-bg:#2b1616; --ok:#86efac; --ok-bg:#132318;
+            --warn:#fcd34d; --warn-bg:#2a2113; --alarm:#fecaca; --alarm-bg:#3b1414; } }
+        * { box-sizing:border-box; }
+        body { margin:0; background:var(--bg); color:var(--ink);
+               font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+        .wrap { max-width:980px; margin:0 auto; padding:22px 16px 70px; }
+        h1 { font-size:1.5rem; margin:0 0 2px; }
+        .sub { color:var(--muted); margin:0 0 20px; font-size:.92rem; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+                padding:18px 20px; margin-bottom:16px; }
+        h2 { font-size:.82rem; margin:0 0 14px; text-transform:uppercase;
+             letter-spacing:.06em; color:var(--muted); }
+        .alarm { background:var(--alarm-bg); border:2px solid var(--alarm); color:var(--alarm);
+                 border-radius:8px; padding:12px 14px; margin-bottom:16px;
+                 font-weight:700; text-align:center; }
+        .warn { background:var(--warn-bg); border:1px solid var(--warn); color:var(--warn);
+                border-radius:8px; padding:11px 14px; margin-bottom:10px; font-size:.9rem; }
+        .good { background:var(--ok-bg); border:1px solid var(--ok); color:var(--ok);
+                border-radius:8px; padding:11px 14px; margin-bottom:10px; font-size:.9rem; }
+        .bad  { background:var(--pay-bg); border:1px solid var(--pay); color:var(--pay);
+                border-radius:8px; padding:11px 14px; margin-bottom:10px; font-size:.9rem; }
+        .row { display:flex; justify-content:space-between; align-items:baseline; gap:16px;
+               padding:13px 0; border-bottom:1px solid var(--line); }
+        .row:last-of-type { border-bottom:0; }
+        .row .what { font-weight:600; }
+        .row .meta { color:var(--muted); font-size:.84rem; font-weight:400; margin-top:2px; }
+        .amt { font-size:1.28rem; font-weight:700; font-variant-numeric:tabular-nums;
+               white-space:nowrap; }
+        .amt.pay { color:var(--pay); } .amt.none { color:var(--ok); font-size:1rem; }
+        .grand { display:flex; justify-content:space-between; align-items:baseline;
+                 margin-top:14px; padding-top:14px; border-top:2px solid var(--ink); }
+        .grand .amt { font-size:1.7rem; }
+        table { width:100%; border-collapse:collapse; font-size:.9rem; }
+        th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+        th { color:var(--muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.04em; }
+        td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+        .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:.74rem; font-weight:700; }
+        .pill.unpaid { background:var(--pay-bg); color:var(--pay); }
+        .pill.paid { background:var(--ok-bg); color:var(--ok); }
+        .pill.none { background:var(--ok-bg); color:var(--ok); }
+        form.inline { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+        label { display:block; font-size:.78rem; color:var(--muted); margin-bottom:4px; }
+        input,select { padding:8px 10px; border:1px solid var(--line); border-radius:6px;
+                       background:var(--card); color:var(--ink); font:inherit; }
+        button { padding:9px 16px; border:0; border-radius:6px; background:var(--ink);
+                 color:var(--bg); font:inherit; font-weight:600; cursor:pointer; }
+        button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+        a { color:inherit; }
+        .basis { color:var(--muted); font-size:.78rem; }
+        .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+        details summary { cursor:pointer; color:var(--muted); font-size:.9rem; }
     </style>
 </head>
 <body>
 <div class="wrap">
 
-    <h1>Rozliczenie miesięczne — {{ $period->label() }}</h1>
-    <p class="sub">{{ $profile?->name ?? 'Brak profilu podatnika' }}@if($profile?->nip) · NIP {{ $profile->nip }}@endif</p>
+    <h1>Co muszę zapłacić — {{ $period->label() }}</h1>
+    <p class="sub">
+        {{ $profile?->name ?? 'Brak profilu podatnika' }}@if($profile?->nip) · NIP {{ $profile->nip }}@endif
+        @if($closed ?? false) · <strong>MIESIĄC ZAMKNIĘTY</strong>@endif
+    </p>
 
-    @if (session('status'))
-        <div class="note" style="color: var(--ok); border-color: var(--ok);">{{ session('status') }}</div>
-    @endif
-
-    {{-- $errors is bound by the web middleware group. Guarded so the view can
-         also be rendered outside a request — from a command, or into a PDF. --}}
+    @if (session('status'))<div class="good">{{ session('status') }}</div>@endif
     @foreach (($errors ?? collect())->all() ?? [] as $message)
-        <div class="warn bad">{{ $message }}</div>
+        <div class="bad">{{ $message }}</div>
     @endforeach
 
+    @if ($r && ($banner = $r->verificationBanner()))
+        <div class="alarm">{{ $banner }}</div>
+    @endif
+
+    @if ($error)
+        <div class="warn">{{ $error }}</div>
+    @endif
+
+    {{-- THE ANSWER, FIRST. Everything else on this page is supporting detail. --}}
+    @if ($r)
+        <div class="card">
+            <h2>Do zapłaty za {{ $period->label() }}</h2>
+
+            @foreach ($r->obligations as $o)
+                <div class="row">
+                    <div>
+                        <div class="what">{{ $o->kind->label() }}</div>
+                        <div class="meta">
+                            {{ $o->payTo() }}@if($o->form) · {{ $o->form }}@endif
+                            @if($o->dueDate) · termin {{ $o->dueDate->format('d.m.Y') }}@endif
+                        </div>
+                    </div>
+                    <div class="amt {{ $o->status === PaymentStatus::Unpaid ? 'pay' : 'none' }}">
+                        @if ($o->status === PaymentStatus::Unpaid)
+                            {{ $o->amount->format() }}
+                        @else
+                            {{ $o->headline() }}
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+
+            <div class="grand">
+                <div class="what">{{ $r->everythingPaid() ? 'Wszystko zapłacone' : 'RAZEM DO ZAPŁATY' }}</div>
+                <div class="amt {{ $r->totalOutstanding()->isPositive() ? 'pay' : 'none' }}">
+                    {{ $r->totalOutstanding()->format() }}
+                </div>
+            </div>
+
+            <div class="actions" style="margin-top:16px">
+                <a href="{{ route('poland.report', ['period' => $period->toString()]) }}">
+                    <button type="button" class="ghost">Pełny raport księgowy / druk / PDF</button>
+                </a>
+                @unless ($closed ?? false)
+                    <form method="POST" action="{{ route('poland.report.generate', ['period' => $period->toString()]) }}">
+                        @csrf
+                        <button type="submit">Wygeneruj i zapisz wersję raportu</button>
+                    </form>
+                    <form method="POST" action="{{ route('poland.report.close', ['period' => $period->toString()]) }}">
+                        @csrf
+                        <button type="submit" class="ghost">Zamknij miesiąc</button>
+                    </form>
+                @else
+                    <form method="POST" action="{{ route('poland.report.reopen', ['period' => $period->toString()]) }}" class="inline">
+                        @csrf
+                        <div>
+                            <label for="reason">Przyczyna ponownego otwarcia</label>
+                            <input type="text" id="reason" name="reason" required
+                                   placeholder="np. korekta raportu dobowego">
+                        </div>
+                        <button type="submit" class="ghost">Otwórz ponownie</button>
+                    </form>
+                @endunless
+                <a href="{{ route('poland.report.history', ['period' => $period->toString()]) }}">
+                    <button type="button" class="ghost">Historia wersji</button>
+                </a>
+            </div>
+        </div>
+
+        {{-- Financial situation --}}
+        <div class="card">
+            <h2>Sytuacja finansowa</h2>
+            <table>
+                <thead><tr><th></th><th class="num">{{ $period->label() }}</th><th class="num">Narastająco</th></tr></thead>
+                <tbody>
+                    <tr><td>Przychód</td>
+                        <td class="num">{{ $r->financials->revenueMonth->format() }}</td>
+                        <td class="num">{{ $r->financials->revenueYearToDate->format() }}</td></tr>
+                    <tr><td>Koszty</td>
+                        <td class="num">{{ $r->financials->costsMonth->format() }}</td>
+                        <td class="num">{{ $r->financials->costsYearToDate->format() }}</td></tr>
+                    <tr><td><strong>{{ $r->financials->profitIsKnown() ? 'Dochód' : 'Dochód (górna granica)' }}</strong></td>
+                        <td class="num"><strong>{{ $r->financials->incomeMonth()->format() }}</strong></td>
+                        <td class="num"><strong>{{ $r->financials->incomeYearToDate()->format() }}</strong></td></tr>
+                </tbody>
+            </table>
+            @if ($caveat = $r->financials->caveat())
+                <div class="warn" style="margin-top:12px">{{ $caveat }}</div>
+            @endif
+        </div>
+
+        {{-- Payment checklist with recording --}}
+        <div class="card">
+            <h2>Lista płatności</h2>
+            <table>
+                <thead><tr><th>Płatność</th><th class="num">Kwota</th><th>Termin</th><th>Status</th><th>Zapisz zapłatę</th></tr></thead>
+                <tbody>
+                @foreach ($r->obligations as $o)
+                    <tr>
+                        <td>{{ $o->kind->label() }}<div class="basis">{{ $o->payTo() }}</div></td>
+                        <td class="num">
+                            @if ($o->hasSurplus())
+                                <span style="color:var(--ok)">nadwyżka {{ $o->surplus->format() }}</span>
+                            @else
+                                {{ $o->amount->format() }}
+                            @endif
+                        </td>
+                        <td>{{ $o->dueDate?->format('d.m.Y') ?? '—' }}</td>
+                        <td>
+                            <span class="pill {{ $o->status === PaymentStatus::Unpaid ? 'unpaid' : ($o->status === PaymentStatus::Paid ? 'paid' : 'none') }}">
+                                {{ $o->status->label() }}
+                            </span>
+                            @if ($o->status === PaymentStatus::Paid)
+                                <div class="basis">
+                                    {{ $o->amountPaid?->format() }} · {{ $o->paidAt?->format('d.m.Y') }}
+                                    @if($o->paymentReference)<br>{{ $o->paymentReference }}@endif
+                                </div>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($o->status === PaymentStatus::Unpaid)
+                                <form method="POST" action="{{ route('poland.report.paid', ['period' => $period->toString()]) }}" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="kind" value="{{ $o->kind->value }}">
+                                    <input type="text" name="amount_paid" size="9"
+                                           value="{{ $o->amount->jsonSerialize() }}" required>
+                                    <input type="date" name="paid_at" value="{{ now()->format('Y-m-d') }}" required>
+                                    <input type="text" name="payment_reference" size="12" placeholder="nr przelewu">
+                                    <button type="submit">Zapłacone</button>
+                                </form>
+                            @else
+                                <span class="basis">—</span>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        @foreach ($r->report->warnings as $warning)
+            <div class="warn">{{ $warning }}</div>
+        @endforeach
+    @endif
+
+    {{-- Data entry --}}
     <div class="card">
-        <form method="POST" action="{{ route('poland.sales.store') }}">
+        <h2>Wprowadź dane</h2>
+        <form method="POST" action="{{ route('poland.sales.store') }}" class="inline">
             @csrf
             <div>
                 <label for="period">Miesiąc</label>
@@ -78,184 +244,39 @@
             </div>
             <div>
                 <label for="correction_reason">Przyczyna korekty (jeśli miesiąc już zapisany)</label>
-                <input type="text" id="correction_reason" name="correction_reason"
-                       value="{{ old('correction_reason') }}" placeholder="np. pominięty raport dobowy">
+                <input type="text" id="correction_reason" name="correction_reason" value="{{ old('correction_reason') }}">
             </div>
             <button type="submit">Zapisz sprzedaż</button>
         </form>
+
+        <details style="margin-top:16px">
+            <summary>Koszty i VAT naliczony (nieobowiązkowe — ale bez nich wynik jest górną granicą)</summary>
+            <form method="POST" action="{{ route('poland.costs.store') }}" class="inline" style="margin-top:12px">
+                @csrf
+                <div>
+                    <label for="cperiod">Miesiąc</label>
+                    <input type="month" id="cperiod" name="period" value="{{ $period->toString() }}" required>
+                </div>
+                <div>
+                    <label for="costs_net">Koszty netto</label>
+                    <input type="text" id="costs_net" name="costs_net" inputmode="decimal" placeholder="5 000,00" required>
+                </div>
+                <div>
+                    <label for="input_vat">VAT naliczony</label>
+                    <input type="text" id="input_vat" name="input_vat" inputmode="decimal" placeholder="1 150,00">
+                </div>
+                <div>
+                    <label for="document_count">Liczba dokumentów</label>
+                    <input type="number" id="document_count" name="document_count" min="0" value="0">
+                </div>
+                <button type="submit">Zapisz koszty</button>
+            </form>
+        </details>
     </div>
 
-    @if ($error)
-        <div class="warn">{{ $error }}</div>
-    @endif
-
-    @if ($report)
-        @if ($report->isEstimate)
-            <div class="warn">
-                <strong>To jest szacunek, nie kwota ostateczna.</strong>
-                Brakuje danych potrzebnych do dokładnego wyliczenia — szczegóły w ostrzeżeniach poniżej.
-            </div>
-        @endif
-
-        @foreach ($report->warnings as $warning)
-            <div class="warn">{{ $warning }}</div>
-        @endforeach
-
-        {{-- The three stages are different claims. This block exists so the
-             screen can never let a calculation read as a filing. --}}
-        <div class="warn bad">
-            <strong>Nic nie zostało złożone.</strong>
-            To jest wyliczenie.
-            @if ($report->fitForFiling())
-                Dane i stawki pozwalają przejść do przygotowania dokumentów.
-            @else
-                Nie nadaje się do złożenia:
-                <ul style="margin:6px 0 0;padding-left:18px">
-                    @foreach ($report->blockersToFiling() as $blocker)
-                        <li>{{ $blocker }}</li>
-                    @endforeach
-                </ul>
-            @endif
-        </div>
-
-        <div class="card">
-            <div class="grid">
-                <div class="tile">
-                    <div class="k">ZUS</div>
-                    <div class="v">{{ $report->zus->total->format() }}</div>
-                    <div class="d">
-                        społeczne {{ $report->zus->socialTotal->format() }} ·
-                        zdrowotna {{ $report->zus->health->format() }}<br>
-                        termin {{ $report->deadlines['zus']['date']->format('d.m.Y') }}
-                    </div>
-                </div>
-                <div class="tile">
-                    <div class="k">VAT</div>
-                    <div class="v">{{ $report->vat->amountToPay->format() }}</div>
-                    <div class="d">
-                        @if ($report->vat->settlesVat)
-                            należny {{ $report->vat->outputVat->format() }} ·
-                            naliczony {{ $report->vat->inputVat->format() }}<br>
-                            {{ $report->vat->jpkStructure }} do
-                            {{ $report->deadlines['vat']['date']->format('d.m.Y') }}
-                        @else
-                            podatnik zwolniony
-                        @endif
-                    </div>
-                </div>
-                <div class="tile">
-                    <div class="k">
-                        {{ $report->profile->pitRegime === PitRegime::LumpSum ? 'Ryczałt (PIT)' : 'Zaliczka PIT' }}
-                    </div>
-                    <div class="v">{{ $report->pit->advanceDue->format() }}</div>
-                    <div class="d">
-                        narastająco {{ $report->pit->taxYearToDate->format() }}<br>
-                        termin {{ $report->deadlines['pit_advance']['date']->format('d.m.Y') }}
-                    </div>
-                </div>
-                <div class="tile total">
-                    <div class="k">Razem do zapłaty</div>
-                    <div class="v">{{ $report->totalDue->format() }}</div>
-                    <div class="d">
-                        ze sprzedaży {{ $report->grossSales->format() }} zostaje
-                        {{ $report->netAfterCharges()->format() }}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @foreach ($report->notes as $note)
-            <div class="note">{{ $note }}</div>
-        @endforeach
-
-        @foreach ([$report->zus->breakdown, $report->vat->breakdown, $report->pit->breakdown] as $breakdown)
-            <div class="card">
-                <details>
-                    <summary>{{ $breakdown->title }} — pokaż wyliczenie</summary>
-                    <table>
-                        <tbody>
-                        @foreach ($breakdown->lines() as $line)
-                            <tr>
-                                <td @if($line->emphasis) style="font-weight:650" @endif>
-                                    {{ $line->label }}
-                                    @if ($line->formula || $line->legalBasis)
-                                        <div class="basis">
-                                            {{ $line->formula }}@if($line->formula && $line->legalBasis) · @endif{{ $line->legalBasis }}
-                                        </div>
-                                    @endif
-                                </td>
-                                <td class="num" @if($line->emphasis) style="font-weight:650" @endif>
-                                    {{ $line->value() }}
-                                </td>
-                            </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                </details>
-            </div>
-        @endforeach
-    @endif
-
-    @if ($recorded->isNotEmpty())
-        <div class="card">
-            <h2 style="font-size:1rem;margin:0 0 10px">Zapisana sprzedaż</h2>
-            <table>
-                <thead><tr><th>Miesiąc</th><th class="num">Brutto</th><th class="num">Netto</th><th class="num">VAT</th></tr></thead>
-                <tbody>
-                @foreach ($recorded as $row)
-                    <tr>
-                        <td><a href="{{ route('poland.dashboard', ['period' => $row->period]) }}">{{ $row->period }}</a></td>
-                        <td class="num">{{ number_format((float) $row->gross_total, 2, ',', ' ') }}</td>
-                        <td class="num">{{ number_format((float) $row->net_total, 2, ',', ' ') }}</td>
-                        <td class="num">{{ number_format((float) $row->vat_total, 2, ',', ' ') }}</td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
-
-    @if ($history->isNotEmpty())
-        <div class="card">
-            <h2 style="font-size:1rem;margin:0 0 10px">Historia rozliczeń</h2>
-            <table>
-                <thead><tr><th>Miesiąc</th><th class="num">ZUS</th><th class="num">VAT</th><th class="num">PIT</th><th class="num">Razem</th><th>Status</th></tr></thead>
-                <tbody>
-                @foreach ($history as $row)
-                    <tr>
-                        <td>{{ $row->period }}</td>
-                        <td class="num">{{ number_format((float) $row->zus_total, 2, ',', ' ') }}</td>
-                        <td class="num">{{ number_format((float) $row->vat_due, 2, ',', ' ') }}</td>
-                        <td class="num">{{ number_format((float) $row->pit_due, 2, ',', ' ') }}</td>
-                        <td class="num">{{ number_format((float) $row->total_due, 2, ',', ' ') }}</td>
-                        <td>{{ $row->statusLabel() }}</td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
-
-    <div class="disclaimer">
+    <p class="basis" style="text-align:center">
         {{ \Poland\Reporting\MonthlyTaxReport::DISCLAIMER }}
-        @if ($report)
-            <br><br><strong>Źródła stawek:</strong>
-            <ul style="margin:6px 0 0;padding-left:18px">
-                @foreach ($report->rateProvenance as $table => $entry)
-                    <li>
-                        <strong>{{ $table }}</strong> v{{ $entry['version'] }}
-                        ({{ $entry['effective_from'] }} → {{ $entry['effective_to'] ?? '…' }})
-                        — {{ $entry['provenance']->status->label() }}<br>
-                        {{ $entry['provenance']->sourceDocument }}
-                        @if (! $entry['provenance']->status->fitForFiling())
-                            <br><em>do potwierdzenia w:</em>
-                            {{ $entry['provenance']->officialSourceUrl }}
-                        @endif
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-    </div>
+    </p>
 
 </div>
 </body>

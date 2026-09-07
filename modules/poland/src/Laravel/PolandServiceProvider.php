@@ -10,6 +10,7 @@ use Poland\Laravel\Console\ReportCommand;
 use Poland\Laravel\Console\VerifyRatesCommand;
 use Poland\Laravel\Support\AuditRecorder;
 use Poland\Laravel\Support\LedgerRepository;
+use Poland\Laravel\Support\MonthlyReportService;
 use Poland\Laravel\Support\SettlementRecorder;
 use Poland\Rates\RateRepository;
 use Poland\Reporting\SettlementEngine;
@@ -56,6 +57,20 @@ final class PolandServiceProvider extends ServiceProvider
 
         $this->app->singleton(SettlementRecorder::class, fn ($app): SettlementRecorder => new SettlementRecorder(
             $app->make(SettlementEngine::class),
+            $app->make(LedgerRepository::class),
+            $app->make(AuditRecorder::class),
+        ));
+
+        $this->app->singleton(
+            \Poland\Reporting\AccountantReportBuilder::class,
+            fn ($app): \Poland\Reporting\AccountantReportBuilder => new \Poland\Reporting\AccountantReportBuilder(
+                $app->make(SettlementEngine::class),
+            ),
+        );
+
+        $this->app->singleton(MonthlyReportService::class, fn ($app): MonthlyReportService => new MonthlyReportService(
+            $app->make(\Poland\Reporting\AccountantReportBuilder::class),
+            $app->make(SettlementRecorder::class),
             $app->make(LedgerRepository::class),
             $app->make(AuditRecorder::class),
         ));
