@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="autoload.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="ShopIntelligence">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>

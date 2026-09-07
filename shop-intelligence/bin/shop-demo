@@ -1,0 +1,169 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * A complete worked month, end to end, with no framework and no database.
+ *
+ * Run it to see what the three pages will show and, more importantly, how they
+ * refuse to overstate what they know:
+ *
+ *     php bin/shop-demo
+ *
+ * Every number below is invented. The point is the labelling, not the figures.
+ */
+
+require __DIR__.'/../autoload.php';
+
+use Shop\Cash\CashLedger;
+use Shop\Cash\CashMovement;
+use Shop\Comparison\AccountsComparison;
+use Shop\Comparison\AccountsSnapshot;
+use Shop\Costs\CostCategory;
+use Shop\Costs\CostEntry;
+use Shop\Costs\CostEntryType;
+use Shop\Inventory\Quantity;
+use Shop\Inventory\Recipe;
+use Shop\Inventory\RecipeBook;
+use Shop\Inventory\StockLine;
+use Shop\Inventory\StockReconciliation;
+use Shop\Money\AllocationSet;
+use Shop\Platforms\PlatformSettlement;
+use Shop\Pricing\PriceReview;
+use Shop\Profit\ChannelResult;
+use Shop\Profit\ProductProfitability;
+use Shop\Profit\ProfitStatement;
+use Shop\Profit\RevenueChannel;
+use Shop\Reporting\MonthlyManagementReport;
+use Shop\Reporting\TextReportRenderer;
+use Shop\Truth\Certainty;
+use Shop\Truth\EvidenceType;
+use Shop\Truth\Figure;
+use Shop\Truth\Money;
+
+$period = '2026-08';
+$zl = static fn (string $amount): Money => Money::parse($amount);
+
+// ---------------------------------------------------------------- Page 1 ----
+$invoice = (new AllocationSet('FV/2026/08/114', $zl('5 000,00'), 'Hurtownia Mięsna'))
+    ->allocate(new Figure($zl('3 000,00'), EvidenceType::BANK_CONFIRMED, 'Przelew 14.08', 'ING/2026-08-14/00231'))
+    ->allocate(new Figure($zl('2 000,00'), EvidenceType::USER_DECLARED, 'Właściciel: zapłacone gotówką', 'decl/2026-08-20'));
+
+$settlements = [
+    new PlatformSettlement('Glovo', $period, $zl('12 000,00'), $zl('3 600,00'), $zl('120,00'),
+        new Figure($zl('7 480,00'), EvidenceType::BANK_CONFIRMED, 'Glovo payout 05.09')),
+    new PlatformSettlement('Uber Eats', $period, $zl('4 000,00'), $zl('1 200,00'), $zl('40,00')),
+];
+
+// ---------------------------------------------------------------- Page 2 ----
+$recipes = (new RecipeBook())
+    ->add(new Recipe('KEBAB_L', 'Kebab duży', [
+        'MEAT' => Quantity::of(180, Quantity::GRAM),
+        'BREAD' => Quantity::of(1, Quantity::PIECE),
+        'SAUCE' => Quantity::of(30, Quantity::MILLILITRE),
+    ]))
+    ->add(new Recipe('KEBAB_S', 'Kebab mały', [
+        'MEAT' => Quantity::of(120, Quantity::GRAM),
+        'BREAD' => Quantity::of(1, Quantity::PIECE),
+        'SAUCE' => Quantity::of(20, Quantity::MILLILITRE),
+    ]));
+
+$consumption = $recipes->theoreticalConsumption(['KEBAB_L' => 1_200, 'KEBAB_S' => 600, 'FRYTKI' => 900]);
+
+$stock = new StockReconciliation(
+    $period,
+    [
+        new StockLine('MEAT', 'Mięso kebab',
+            Quantity::of(20_000, Quantity::GRAM), Quantity::of(300_000, Quantity::GRAM),
+            $consumption->forIngredient('MEAT', Quantity::GRAM),
+            Quantity::of(18_000, Quantity::GRAM), 2.0, $zl('0,03'), $consumption->isComplete()),
+        new StockLine('BREAD', 'Bułka',
+            Quantity::of(200, Quantity::PIECE), Quantity::of(1_800, Quantity::PIECE),
+            $consumption->forIngredient('BREAD', Quantity::PIECE),
+            Quantity::of(190, Quantity::PIECE), 2.0, $zl('1,10'), $consumption->isComplete()),
+        new StockLine('SAUCE', 'Sos czosnkowy',
+            Quantity::of(10_000, Quantity::MILLILITRE), Quantity::of(50_000, Quantity::MILLILITRE),
+            $consumption->forIngredient('SAUCE', Quantity::MILLILITRE)),
+    ],
+    $zl('73 500,00'),
+    $zl('22 000,00'),
+    $zl('24 400,00'),
+);
+
+// ---------------------------------------------------------------- Page 3 ----
+$statement = new ProfitStatement(
+    $period,
+    [
+        new Figure($zl('57 500,00'), EvidenceType::FISCAL_REPORT, 'Kasa fiskalna — raport miesięczny'),
+        new Figure($zl('12 000,00'), EvidenceType::PLATFORM_STATEMENT, 'Glovo'),
+        new Figure($zl('4 000,00'), EvidenceType::PLATFORM_STATEMENT, 'Uber Eats'),
+    ],
+    [
+        CostEntry::record('FV/2026/08/114', CostCategory::FOOD_AND_MATERIALS, 'Mięso', $zl('24 400,00'), CostEntryType::INVOICE, $period, 'Hurtownia Mięsna'),
+        CostEntry::record('REC/CZYNSZ', CostCategory::PREMISES_AND_UTILITIES, 'Czynsz', $zl('6 000,00'), CostEntryType::RECURRING, $period, 'Wynajmujący'),
+        CostEntry::record('FV/PRAD/08', CostCategory::PREMISES_AND_UTILITIES, 'Prąd', $zl('2 400,00'), CostEntryType::INVOICE, $period, 'Tauron'),
+        CostEntry::record('WYP/08', CostCategory::OTHER_OPERATING, 'Wynagrodzenia', $zl('16 800,00'), CostEntryType::BANK, $period),
+        CostEntry::record('PROW/GLOVO', CostCategory::OTHER_OPERATING, 'Prowizje platform', $zl('4 800,00'), CostEntryType::BANK, $period),
+        CostEntry::record('EST/OPAK', CostCategory::FOOD_AND_MATERIALS, 'Opakowania', $zl('1 900,00'), CostEntryType::ESTIMATE, $period),
+    ],
+);
+
+$channels = [
+    new ChannelResult(RevenueChannel::DIRECT_CASH, $zl('21 500,00'), Money::zero(), $zl('6 450,00'), 760),
+    new ChannelResult(RevenueChannel::DIRECT_CARD, $zl('36 000,00'), Money::zero(), $zl('10 800,00'), 1_240),
+    new ChannelResult(RevenueChannel::GLOVO, $zl('12 000,00'), $zl('3 600,00'), $zl('3 600,00'), 395),
+    new ChannelResult(RevenueChannel::UBER_EATS, $zl('4 000,00'), $zl('1 200,00'), $zl('1 200,00'), 130),
+];
+
+$cash = (new CashLedger($period, $zl('500,00'), $zl('640,00'), 'Anna'))
+    ->record(new CashMovement('2026-08-05', 'Utarg gotówkowy, tydzień 32', $zl('5 100,00'), EvidenceType::FISCAL_REPORT))
+    ->record(new CashMovement('2026-08-07', 'Wpłata do banku', $zl('-4 800,00'), EvidenceType::BANK_CONFIRMED))
+    ->record(new CashMovement('2026-08-20', 'Zapłata za mięso gotówką', $zl('-2 000,00'), EvidenceType::USER_DECLARED, 'decl/2026-08-20'))
+    ->record(new CashMovement('2026-08-28', 'Utarg gotówkowy, tydzień 35', $zl('2 000,00'), EvidenceType::FISCAL_REPORT));
+
+$comparison = new AccountsComparison(
+    $statement,
+    new AccountsSnapshot($period, $zl('73 500,00'), $zl('52 300,00'), 'anna',
+        '2026-09-05T10:00:00', 'Miesięczny raport księgowy, wyeksportowany ręcznie'),
+);
+
+$report = new MonthlyManagementReport(
+    $statement,
+    $channels,
+    $settlements,
+    $stock,
+    $cash,
+    $comparison,
+    ['2026-05' => $zl('71 000,00'), '2026-06' => $zl('74 500,00'), '2026-07' => $zl('76 000,00')],
+    ['2026-05' => $zl('52 000,00'), '2026-06' => $zl('53 500,00'), '2026-07' => $zl('54 000,00')],
+    23.4,
+    date('c'),
+);
+
+echo (new TextReportRenderer())->render($report);
+
+echo "\n-- PAGE 1, ONE DOCUMENT ---------------------------------------------------\n";
+echo $invoice->documentReference.' ('.$invoice->counterparty.")\n";
+echo '  '.$invoice->settlementDescription()."\n";
+echo '  bank-confirmed '.$invoice->corroborated()->format()
+    .' · on declaration only '.$invoice->uncorroborated()->format()."\n";
+
+echo "\n-- PAGE 2, THEORETICAL CONSUMPTION ----------------------------------------\n";
+foreach ($consumption->byIngredient as $code => $quantity) {
+    printf("  %-8s %s\n", $code, $quantity->format());
+}
+foreach ($consumption->reviewFlags() as $flag) {
+    echo '  ! '.$flag->explanation."\n";
+}
+
+echo "\n-- PAGE 3, PRICE REVIEW ---------------------------------------------------\n";
+foreach ([[RevenueChannel::DIRECT_CARD, 0.0], [RevenueChannel::GLOVO, 30.0], [RevenueChannel::UBER_EATS, 30.0]] as [$channel, $commission]) {
+    $review = new PriceReview(
+        new ProductProfitability('KEBAB_L', 'Kebab duży', $channel, $zl('28,00'), $zl('9,00'),
+            $commission, $zl('1,20'), Certainty::ESTIMATED, 1_200),
+        60.0,
+        50.0,
+    );
+    echo '  '.wordwrap($review->explanation(), 74, "\n     ")."\n\n";
+}
