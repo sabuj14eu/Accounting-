@@ -23,6 +23,7 @@ FOUNDATION="${FOUNDATION:-/srv/accounting/foundation}"
 APP_USER="${APP_USER:-accounting}"
 PHP_BIN="${PHP_BIN:-/usr/bin/php8.5}"
 EMAIL="${1:-}"
+MODE="${2:-}"          # --generate: set a new random password and print it once
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
@@ -38,9 +39,18 @@ cleanup() { rm -f "$PW_FILE"; }
 trap cleanup EXIT
 
 step "Hasło"
-printf '    Nowe hasło dla %s (Enter = nie zmieniaj; nic nie zostanie wyświetlone): ' "$EMAIL"
-read -rs PASSWORD; echo
-if [ -n "$PASSWORD" ]; then
+GENERATED=""
+if [ "$MODE" = "--generate" ]; then
+    GENERATED="$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 16)"
+    PASSWORD="$GENERATED"
+    info "wygenerowano nowe hasło — zostanie wypisane na końcu"
+else
+    printf '    Nowe hasło dla %s (Enter = nie zmieniaj; nic nie zostanie wyświetlone): ' "$EMAIL"
+    read -rs PASSWORD; echo
+fi
+if [ -n "$GENERATED" ]; then
+    printf '%s' "$PASSWORD" > "$PW_FILE"
+elif [ -n "$PASSWORD" ]; then
     printf '    Powtórz hasło: '
     read -rs PASSWORD2; echo
     [ "$PASSWORD" = "$PASSWORD2" ] || die "Hasła nie są identyczne."
@@ -50,7 +60,8 @@ if [ -n "$PASSWORD" ]; then
 else
     info "hasło bez zmian"
 fi
-unset PASSWORD PASSWORD2
+unset PASSWORD
+unset PASSWORD2 2>/dev/null || true
 chown "$APP_USER" "$PW_FILE"
 
 step "Uprawnienia (permissions:sync)"
@@ -139,6 +150,15 @@ cat <<SUMMARY
 
   Zaloguj się: https://account.signalmesh.dev/admin/login
                e-mail $EMAIL
+SUMMARY
+if [ -n "$GENERATED" ]; then
+cat <<SUMMARY
+               hasło  $GENERATED
+
+  ZAPISZ TO HASŁO TERAZ — nie jest nigdzie przechowywane w postaci jawnej.
+SUMMARY
+fi
+cat <<SUMMARY
 
   Jeśli weryfikacja powyżej mówi NIEUDANA, prześlij ten komunikat — rola
   istnieje, ale panel odrzuca konto z innego powodu.
