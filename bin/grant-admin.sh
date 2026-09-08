@@ -89,13 +89,15 @@ echo \"zespol: {\$team->name} (id {\$team->id})\n\";
 \$roleName = (string) config('filament-shield.super_admin.name', 'super_admin');
 \$roleData = ['name' => \$roleName, 'guard_name' => 'web'];
 
-// Spatie roles are team-scoped only when Shield's tenancy is on. Setting the
-// team id when it is off would write a column that does not exist.
-if (class_exists(BezhanSalleh\FilamentShield\Support\Utils::class)
-    && BezhanSalleh\FilamentShield\Support\Utils::isTenancyEnabled()) {
+// What decides whether the pivot carries a team is Spatie's own
+// permission.teams (true here), NOT Shield's tenancy (tenant_model is null).
+// With teams on and no team context set, assignRole() writes a null team_id
+// or throws; setting the context first makes the row consistent. The panel's
+// own check (AnyTeamRoleLookup) ignores team_id either way.
+if ((bool) config('permission.teams', false)) {
     \$roleData['team_id'] = \$team->id;
     app(Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId(\$team->id);
-    echo \"role sa przypisane do zespolu (tenancy wlaczone)\n\";
+    echo \"role sa przypisane do zespolu id {\$team->id}\n\";
 }
 
 \$role = Spatie\Permission\Models\Role::firstOrCreate(\$roleData);
@@ -103,7 +105,23 @@ if (class_exists(BezhanSalleh\FilamentShield\Support\Utils::class)
 if (\$permissions !== []) { \$role->syncPermissions(\$permissions); }
 echo \"rola {\$roleName}: \" . count(\$permissions) . \" uprawnien\n\";
 
-\$user->assignRole(\$role);
+try {
+    \$user->assignRole(\$role);
+} catch (\Throwable \$e) {
+    echo \"assignRole nie powiodlo sie ({\$e->getMessage()}) - probuje bezposrednio\n\";
+    \$pivot = (string) config('permission.table_names.model_has_roles', 'model_has_roles');
+    \$row = [
+        'role_id' => \$role->id,
+        'model_id' => \$user->getKey(),
+        'model_type' => \$user->getMorphClass(),
+    ];
+    if ((bool) config('permission.teams', false)) {
+        \$row[(string) config('permission.column_names.team_foreign_key', 'team_id')] = \$team->id;
+    }
+    if (! Illuminate\Support\Facades\DB::table(\$pivot)->where(\$row)->exists()) {
+        Illuminate\Support\Facades\DB::table(\$pivot)->insert(\$row);
+    }
+}
 app(Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
 \$user->refresh();
