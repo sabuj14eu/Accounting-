@@ -42,6 +42,22 @@ enum KsefEnvironment: string
         return $this === self::Production;
     }
 
+    /**
+     * The official API base URL as pinned from Ministry material in
+     * resources/ksef/environments (see PINNED.md). This is the documented
+     * default that config/poland.php carries; TEST and DEMO may be overridden
+     * by configuration, production may not. KsefEnvironmentPinTest keeps
+     * these three strings equal to the pinned files.
+     */
+    public function pinnedApiBaseUrl(): string
+    {
+        return match ($this) {
+            self::Test => 'https://api-test.ksef.mf.gov.pl/v2',
+            self::Demo => 'https://api-demo.ksef.mf.gov.pl/v2',
+            self::Production => 'https://api.ksef.mf.gov.pl/v2',
+        };
+    }
+
     /** The Ministry's API documentation for this environment (pinned in resources/ksef/PINNED.md). */
     public function documentationUrl(): string
     {

@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 DOMAIN="${DOMAIN:-account.signalmesh.dev}"
 REPO="${REPO:-https://github.com/sabuj14eu/Accounting-}"
-BRANCH="${BRANCH:-claude/poland-accounting-app-pijnfm}"
+BRANCH="${BRANCH:-claude/ksef-2-fa3-integration-84856a}"
 APP_USER="${APP_USER:-accounting}"
 APP_ROOT="${APP_ROOT:-/srv/accounting}"
 DB_NAME="${DB_NAME:-accounting}"
@@ -195,8 +195,27 @@ grep -q "^APP_KEY=base64:" "$ENV_FILE" || sudo -u "$APP_USER" "$PHP_BIN" artisan
 info "APP_URL=https://$DOMAIN, baza i Redis ustawione"
 
 # ---------------------------------------------------------------------------
-step "8/12  Migracje"
+step "8/12  Kopia zapasowa przed migracją, potem migracje"
 # ---------------------------------------------------------------------------
+# backup -> migrate -> restart -> verify. A migration that alters a table with
+# data in it (the KSeF migration does) is preceded by a dump of the whole
+# database, kept on disk, so a failed migration is a restore rather than a
+# loss. On a fresh install the database is empty and the step reports that.
+BACKUP_DIR="$APP_ROOT/backups"
+mkdir -p "$BACKUP_DIR"; chown "$APP_USER:$APP_USER" "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
+TABLE_COUNT="$(mysql -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME'" 2>/dev/null || echo 0)"
+if [ "${TABLE_COUNT:-0}" -gt 0 ]; then
+    PRE_MIGRATE_DUMP="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S)-$(sudo -u "$APP_USER" git -C "$APP_ROOT/app" rev-parse --short HEAD).sql.gz"
+    mysqldump --host=127.0.0.1 --user="$DB_USER" --password="$DB_PASS" \
+        --single-transaction --routines --triggers "$DB_NAME" | gzip > "$PRE_MIGRATE_DUMP"
+    [ -s "$PRE_MIGRATE_DUMP" ] || die "Kopia zapasowa przed migracją jest pusta — przerwano PRZED migracją."
+    chown "$APP_USER:$APP_USER" "$PRE_MIGRATE_DUMP"; chmod 600 "$PRE_MIGRATE_DUMP"
+    info "kopia przed migracją: $PRE_MIGRATE_DUMP ($(du -h "$PRE_MIGRATE_DUMP" | cut -f1), $TABLE_COUNT tabel)"
+    ls -1t "$BACKUP_DIR"/pre-migrate-*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -f   # keep the last 10
+else
+    PRE_MIGRATE_DUMP=""
+    info "baza pusta (świeża instalacja) — nie ma czego kopiować"
+fi
 sudo -u "$APP_USER" "$PHP_BIN" artisan migrate --force
 sudo -u "$APP_USER" "$PHP_BIN" artisan storage:link >/dev/null 2>&1 || true
 chown -R "$APP_USER:$APP_USER" "$APP_ROOT/foundation/storage" "$APP_ROOT/foundation/bootstrap/cache"
@@ -238,7 +257,10 @@ for unit in accounting-queue.service accounting-scheduler.service accounting-sch
 done
 systemctl daemon-reload
 systemctl enable --now accounting-queue.service accounting-scheduler.timer >/dev/null 2>&1 || true
-info "pula php-fpm-$PHP_FPM_POOL, kolejka i scheduler uruchomione"
+# `enable --now` leaves an already-running worker on the OLD code. An update
+# without this restart would poll KSeF with last release's classes.
+systemctl restart accounting-queue.service >/dev/null 2>&1 || true
+info "pula php-fpm-$PHP_FPM_POOL, kolejka (zrestartowana) i scheduler uruchomione"
 
 # ---------------------------------------------------------------------------
 step "10/12  nginx"
@@ -323,6 +345,19 @@ else {
 sudo -u "$APP_USER" "$PHP_BIN" artisan config:cache >/dev/null 2>&1 || true
 sudo -u "$APP_USER" "$PHP_BIN" artisan route:cache >/dev/null 2>&1 || true
 sudo -u "$APP_USER" "$PHP_BIN" artisan view:cache  >/dev/null 2>&1 || true
+sudo -u "$APP_USER" "$PHP_BIN" artisan queue:restart >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+step "Weryfikacja — KSeF Gate 1 (runtime) na tej instalacji"
+# ---------------------------------------------------------------------------
+# The last word belongs to the running application, not to the installer.
+KSEF_GATE1="FAILED"
+if PHP_BIN="$PHP_BIN" bash "$APP_ROOT/app/bin/ksef-runtime-check.sh" "$APP_ROOT/foundation"; then
+    KSEF_GATE1="PASSED (mechanical rows; HUMAN rows remain)"
+else
+    warn "KSeF Gate 1 nie przeszedł — aplikacja działa, ale integracja KSeF nie jest"
+    warn "zweryfikowana na tym serwerze. Zapisz wynik w docs/KSEF_PRODUCTION_GATE.md."
+fi
 
 # ---------------------------------------------------------------------------
 SCHEME="https"; grep -q "listen 443" "/etc/nginx/sites-available/$DOMAIN" || SCHEME="http"
@@ -363,6 +398,15 @@ cat <<SUMMARY
     systemd       accounting-queue.service, accounting-scheduler.timer
     nginx         własny server block
     Nic z systemu tradingowego nie zostało zmienione ani użyte.
+
+  KSeF 2.0 / FA(3)
+    stan          CODE-COMPLETE · AUTOMATED-TESTED
+                  LIVE-TEST-VERIFIED: NOT YET · DEMO-VERIFIED: NOT YET · PRODUCTION: OFF
+    transport     KSEF_TRANSPORT=disabled (nic nie jest wysyłane ani pobierane)
+    Gate 1        $KSEF_GATE1
+    kopia         ${PRE_MIGRATE_DUMP:-brak (świeża baza)}
+    dalej         Ustawienia → Poland → KSeF → Konfiguracja (krok po kroku),
+                  potem bramki 2-14 z docs/KSEF_PRODUCTION_GATE.md — po kolei.
 
   NASTĘPNY KROK — WYMAGANY PRZED PŁACENIEM PODATKU
     POLAND_REQUIRE_OFFICIAL_RATES=true — rozliczenia są ZABLOKOWANE do czasu

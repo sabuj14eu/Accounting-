@@ -58,9 +58,13 @@ return [
         'environment' => env('KSEF_ENVIRONMENT', 'test'),   // test | demo | production
 
         /*
-         * Official API base URLs per environment (resources/ksef/PINNED.md).
-         * KSEF_BASE_URL may override TEST or DEMO (a proxy, a mirror); it can
-         * NEVER override production — KsefEndpoints refuses.
+         * Official API base URLs per environment, pinned verbatim from Ministry
+         * material (resources/ksef/PINNED.md, "Environments"): the OpenAPI
+         * document for TEST, the official reference client's profiles for
+         * DEMO and PRODUCTION. KsefEnvironmentPinTest fails if these literals
+         * drift from the pinned files. KSEF_BASE_URL may override TEST or DEMO
+         * (a proxy, a mirror); it can NEVER override production —
+         * KsefEndpoints refuses.
          */
         'base_urls' => [
             'test' => env('KSEF_TEST_BASE_URL', 'https://api-test.ksef.mf.gov.pl/v2'),

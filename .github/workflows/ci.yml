@@ -133,6 +133,13 @@ jobs:
           php artisan route:list | grep -q 'poland.ksef.status'
           php artisan route:list | grep -q 'poland-ksef'
 
+      # KSeF Gate 1 (runtime), the same script the server runs after a deploy:
+      # boot, migration recorded, the eight tables with their unique
+      # constraints, commands, routes, the Filament page, health from stored
+      # facts, scheduler wiring. systemd and HTTP rows are HUMAN here.
+      - name: KSeF Gate 1 runtime check
+        run: KSEF_CHECK_SKIP_SYSTEMD=1 KSEF_CHECK_SKIP_HTTP=1 app/bin/ksef-runtime-check.sh "$GITHUB_WORKSPACE/foundation"
+
       # Rates are still sourced from secondary publications. This asserts the
       # engine SAYS so rather than asserting that they are fine.
       - name: Unverified rates are reported, not hidden

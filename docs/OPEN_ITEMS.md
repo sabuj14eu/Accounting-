@@ -64,7 +64,12 @@ Built 2026-09-08 against the pinned official contract (API 2.7.1, FA(3) 1-0E,
 RSA-OAEP-SHA256, interactive sessions with AES-256-CBC, FA(3) generation and
 offline XSD validation, status/UPO, incremental HWM-based sync with
 page-atomic cursors, five-step configuration, status page, Filament hooks.
-446 unit tests green. **What is not done, and blocks every "green" claim:**
+453 unit tests green. Status, in the exact vocabulary of
+`docs/KSEF_PRODUCTION_GATE.md`: **CODE-COMPLETE · AUTOMATED-TESTED ·
+LIVE-TEST-VERIFIED: NOT YET · DEMO-VERIFIED: NOT YET · PRODUCTION: OFF.**
+The fourteen-gate verification sequence in that document is the path from
+here; it runs on the deployed PHP 8.5 application only.
+**What is not done, and blocks every "green" claim:**
 
 1. **No live contact.** `api-test.ksef.mf.gov.pl` is refused by the build
    environment's egress policy. Gates 4–16, 19, 20 in
@@ -75,13 +80,20 @@ page-atomic cursors, five-step configuration, status page, Filament hooks.
    the gate document.
 2. **The Laravel layer has not been executed here** (PHP 8.4, no foundation).
    Migration `2026_09_08_000100`, the services, the controller, the Filament
-   page and hooks are syntax-checked only. Proof: CI job `laravel-integration`
-   green with the added checks, and the migration applied on the server.
-3. **DEMO and PRODUCTION base URLs are derived** from the documented hosts by
-   the TEST pattern (`https://api-demo.ksef.mf.gov.pl/v2`,
-   `https://api.ksef.mf.gov.pl/v2`). Confirm on first DEMO contact; the
-   production value lives only in `config/poland.php`.
-4. **Backup/restore has not been drilled with the KSeF tables** (gate 18).
+   page and hooks are syntax-checked only. This is Gate 1. Proof: CI job
+   `laravel-integration` green (it runs `bin/ksef-runtime-check.sh`), and the
+   same script passing on the server after `bin/deploy-contabo.sh`, plus its
+   HUMAN rows done logged in.
+3. **DEMO and PRODUCTION base URLs are pinned from official material but not
+   yet answered by the real hosts.** The hosts come from the official
+   reference client's environment profiles and the `/v2` path from the
+   OpenAPI document (`modules/poland/resources/ksef/environments/`,
+   `KsefEnvironmentPinTest`). Gate 3's live half — the first real response
+   from each host — is recorded in the gate document on first contact.
+4. **Backup/restore has not been drilled with the KSeF tables** (Gate 2, row
+   18). `bin/data-safety-drill.sh` steps 11–12 now check the KSeF document
+   store, hashes, submissions, status history and cursors; it has to be run
+   on the server. `bin/deploy-contabo.sh` now writes a pre-migration dump.
 5. **The ERP has no customer NIP** — buyers are confirmed once per customer in
    the KSeF screen (`pl_ksef_customer_identifiers`). A B2B invoice cannot be
    prepared until that is done; the mapper refuses rather than sends `BrakID`.

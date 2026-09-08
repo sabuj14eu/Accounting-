@@ -1,0 +1,26 @@
+server:
+  port: 8082
+
+sdk:
+  config:
+    base-uri: "https://api-test.ksef.mf.gov.pl"
+    suffix-uri: "v2"
+    qr-uri: "https://qr-test.ksef.mf.gov.pl"
+    request-timeout: 100
+    lighthouse-base-uri: "https://api-latarnia-test.ksef.mf.gov.pl/"
+    response-header-observation:
+      # mimo domyślnie wyłączonego property możemy w runtime go utworzyć wywołując getResponseHeaderCaptureHandler() i następnie zasubskrybować się na nagłówek
+      enabled: false
+      header-names:
+        - "X-System-Warning"
+    circuit-breaker-options:
+      enabled: true
+      failure-threshold: 5
+      break-duration-seconds: 30
+    default-headers:
+      # Wymuszenie formatu Problem Details dla odpowiedzi błędów 400 i 429
+      X-Error-Format: "problem-details"
+
+spring:
+  profiles:
+    default: local

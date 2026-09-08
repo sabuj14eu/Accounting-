@@ -79,6 +79,19 @@ All 20 classes listed in the specification (§44) plus `KsefCryptographyTest`,
 framework-free, run by `vendor/bin/phpunit`. Live TEST/DEMO runs are not part
 of the suite and are tracked in `docs/KSEF_PRODUCTION_GATE.md`.
 
+## Verification on the deployed application
+
+`bin/ksef-runtime-check.sh [/srv/accounting/foundation]` is Gate 1 of
+`docs/KSEF_PRODUCTION_GATE.md`: it asks the running PHP 8.5 application
+whether it boots, whether migration `2026_09_08_000100` is recorded, whether
+the eight `pl_ksef_*` tables with their unique constraints and indexes exist,
+whether the commands, routes and the Filament page are registered, whether the
+health command tells the truth with the transport off, whether the scheduler
+and queue can poll, and whether the HTTP surface answers. Screens are HUMAN
+rows. The installer runs it after every deploy; CI runs it in
+`laravel-integration`; `bin/release-gate.sh` runs it as gate 14.
+`bin/data-safety-drill.sh` steps 11–12 are Gate 2's KSeF rows.
+
 ## Known limitations
 
 - Invoice types: VAT and KOR. ZAL/ROZ/UPR, attachments, batch sessions,

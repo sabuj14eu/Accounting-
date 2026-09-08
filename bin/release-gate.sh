@@ -121,6 +121,20 @@ human "requires real bank statement, real invoices and an accountant's records"
 gate "13 Honest UI"
 run_gate "13 integration status panel" "IntegrationStatusTest"
 
+# --- 14. KSeF Gate 1 — runtime on the deployed foundation --------------------
+gate "14 KSeF Gate 1 (runtime on the deployed foundation)"
+if [ -f "$TARGET/artisan" ]; then
+    if PHP_BIN="$PHP_BIN" bash "$REPO_ROOT/bin/ksef-runtime-check.sh" "$TARGET" >/tmp/ksef-gate1.log 2>&1; then
+        pass "KSeF runtime check passed ($(grep -c PASS /tmp/ksef-gate1.log) rows; $(grep -c HUMAN /tmp/ksef-gate1.log) HUMAN rows still open) — see /tmp/ksef-gate1.log"
+    else
+        fail "KSeF runtime check failed — see /tmp/ksef-gate1.log"
+        grep FAIL /tmp/ksef-gate1.log | head -10
+    fi
+else
+    fail "no deployed foundation at $TARGET to run the KSeF runtime check against"
+fi
+human "KSeF gates 2-14 (docs/KSEF_PRODUCTION_GATE.md) are live checks against the Ministry's TEST and DEMO systems"
+
 # --- summary -----------------------------------------------------------------
 printf '\n\033[1m== RESULT ==\033[0m\n'
 printf '  passed: %d   failed: %d   requires human: %d\n\n' "$PASS" "$FAIL" "$HUMAN"
@@ -133,5 +147,6 @@ fi
 printf '\033[32mMechanical gates passed.\033[0m\n'
 printf 'Milestone reached: LIVE APPLICATION.\n'
 printf 'NOT reached: PRODUCTION ACCOUNTING (needs rate verification + real-data pilot).\n'
-printf 'NOT reached: AUTOMATED FILING (deliberately disabled).\n\n'
+printf 'NOT reached: AUTOMATED FILING (deliberately disabled).\n'
+printf 'KSeF: CODE-COMPLETE · AUTOMATED-TESTED · LIVE-TEST-VERIFIED: NOT YET · DEMO-VERIFIED: NOT YET · PRODUCTION: OFF\n\n'
 exit 0

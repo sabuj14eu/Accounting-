@@ -1,14 +1,55 @@
 # KSeF production gate
 
-**Status: NOT REACHED.** Production KSeF stays OFF. This document is the only
-place that may say otherwise, and it may say so only after every row below
-reads PASS with a date, a person, and where the proof is.
+## Current status (exact vocabulary — use these words and no others)
+
+| Term | Meaning | Now |
+|---|---|---|
+| CODE-COMPLETE | The implementation exists. | **YES** (2026-09-08) |
+| AUTOMATED-TESTED | The automated suite passes. | **YES** — 453 tests, 1993 assertions, fake transport |
+| LIVE-TEST-VERIFIED | The real KSeF TEST environment succeeded (gates 1–12 below). | **NOT YET** |
+| DEMO-VERIFIED | The real DEMO environment succeeded (gate 13). | **NOT YET** |
+| PRODUCTION-VERIFIED | A controlled production pilot succeeded (gate 14). | **NOT YET** |
+| PRODUCTION | `KSEF_TRANSPORT` on the production deployment. | **OFF** (`disabled`) |
+
+The system is **not** "KSeF production-ready" while LIVE-TEST-VERIFIED is
+NOT YET. It is accepted as CODE-COMPLETE / PRE-PRODUCTION. That is an honest
+release state and it is the one this document reports until a row below
+changes with a date, a person and a proof.
+
+**Status of the production gate: NOT REACHED.** Production KSeF stays OFF.
+This document is the only place that may say otherwise, and it may say so
+only after every row below reads PASS with a date, a person, and where the
+proof is.
 
 Production is a deployment setting, not a screen. Nothing in the UI can turn it
 on; the wizard's "enable" step refuses on production until a real connection
 test passed, and the installer defaults every deployment to
 `KSEF_ENVIRONMENT=test`, `KSEF_TRANSPORT=disabled`,
 `KSEF_TRANSPORT_ENABLED=false`.
+
+## Verification sequence — fourteen gates, in order, on the real PHP 8.5 deployment
+
+Each gate is run on the deployed application, never on a substitute. A gate is
+recorded here with date, person and proof (a log path, a KSeF reference
+number, a screenshot location — never a credential). A gate that was not run
+is NOT REACHED, never assumed.
+
+| Gate | What must be shown | How | Rows below | Status |
+|---|---|---|---|---|
+| 1 Runtime | Boots on PHP 8.5; all migrations apply; the eight `pl_ksef_*` tables, their unique constraints and indexes exist; wizard, status page, Sales Orders KSeF block and invoice panel render; settings save; health check runs; scheduler/queue can poll. | `sudo bash bin/ksef-runtime-check.sh /srv/accounting/foundation` (mechanical rows) + the HUMAN rows it lists, done logged in. No framework-free test substitutes. | prerequisite for 4–20 | NOT REACHED |
+| 2 Database | Real backup before migration; migration succeeds; rollback succeeds in a disposable copy; restore works; KSeF XML, SHA-256, submissions, status history, sync cursors and audit records survive restore. | `bin/deploy-contabo.sh` writes `pre-migrate-*.sql.gz` before migrating; `sudo bash bin/data-safety-drill.sh` (steps 3, 5, 11, 12). Rollback = `php artisan migrate:rollback --step=1` against the `_drill` copy only, **never** the production database. | 18 | NOT REACHED |
+| 3 Official endpoints | API version, TEST / DEMO / PRODUCTION URLs, OpenAPI, FA(3) and UPO checksums are explicitly pinned from official material; no undocumented endpoint is used. | `modules/poland/resources/ksef/PINNED.md` + `SHA256SUMS`; `KsefEnvironmentPinTest`. The live half: the first real response from each host is recorded here. | 1 | pinned PASS 2026-09-08; live NOT REACHED |
+| 4 Real TEST authentication | challenge → RSA-OAEP → `/auth/ksef-token` → polling → success → redeem → usable access token → refresh, with the **server's** responses. | wizard step 3 + `php artisan poland:ksef-test`; `pl_ksef_auth_sessions` row; no credential in any log. | 4, 14 | NOT REACHED |
+| 5 Real TEST connection | "Testuj połączenie": authenticated, correct NIP, correct environment, permissions reported, health CONNECTED; a failure never reads "0 invoices". | status page; `poland:ksef-health --json` | 5, 15, 19 | NOT REACHED |
+| 6 Real FA(3) invoice | accounting invoice → mapper → FA(3) → XSD → submission → polling → ACCEPTED → real KSeF number → UPO; stored hash equals submitted XML. | one controlled TEST invoice; `pl_ksef_submissions`, `pl_ksef_invoice_documents` | 2, 3, 6, 7, 16 | NOT REACHED |
+| 7 Rejection | An intentionally invalid invoice: KSeF rejects, local REJECTED, raw status and reason kept, never marked accepted, no blind resubmit. | `pl_ksef_status_events` for that submission | 6, 11 | NOT REACHED |
+| 8 Timeout / unknown | SUBMISSION → UNKNOWN → MANUAL_REVIEW; recovery finds the true KSeF state without a duplicate. | controlled timeout (`KSEF_REQUEST_TIMEOUT` low, or a firewall rule), then "Rozstrzygnij" | 11, 12 | NOT REACHED |
+| 9 Duplicate | Same scenario twice: no duplicate invoice, no duplicate active submission, DB constraint holds, KSeF 440 recorded with the original reference. | `pl_ksef_submissions.active_key` unique; the 440 event | 12 | NOT REACHED |
+| 10 Incoming | Page 1 → persist → commit → cursor advance; forced page-2 failure leaves the cursor at the last safe position; resume retrieves page 2 without loss or duplicate. | real TEST data with incoming invoices; `pl_ksef_sync_cursors`, `pl_ksef_sync_runs` | 8, 9, 10 | NOT REACHED |
+| 11 XML / UPO | For a real accepted invoice: original XML, UPO, UPO valid against the pinned XSD, stored hash equal, references and timestamps verified, storage immutable. Nothing manufactured locally. | submission detail page; `pl_ksef_invoice_documents` | 16 | NOT REACHED |
+| 12 Security | On the deployed app: tokens and private keys never displayed; bearer headers never logged; exceptions, audit records, browser responses and serialised models carry no credential; production cannot select the fake transport or an arbitrary base URL. | manual review of `storage/logs/laravel.log`, `pl_ksef_errors`, `pl_audit_events`, page source; `KsefProductionSafetyTest` | 17 | NOT REACHED |
+| 13 DEMO | Only after 1–12 pass on TEST: official DEMO endpoint, authenticate, test connection, controlled invoice, status, confirmation, incoming sync. Results recorded. | `KSEF_ENVIRONMENT=demo`, a DEMO token | 20 | NOT REACHED |
+| 14 Production | `KSEF_TRANSPORT=disabled` until every row is PASS; then a controlled pilot: **one** real invoice, full lifecycle, before any other. Never automatic submission of all invoices. | this document, then the activation section | 21, 22 | NOT REACHED |
 
 ## The gates
 
@@ -31,7 +72,7 @@ test passed, and the installer defaults every deployment to
 | 15 | Permission failure tested | unit PASS; live **NOT REACHED** | `KsefAuthorizationTest`, `KsefAuthenticationTest` (415) |
 | 16 | UPO retrieval tested | unit PASS (official samples); live **NOT REACHED** | `KsefUpoTest` |
 | 17 | Audit trail verified (every action, no secret) | unit PASS | `KsefAuditTest`, `KsefCredentialSecurityTest` |
-| 18 | Backup/restore verified with KSeF tables | **NOT REACHED** | run `bin/data-safety-drill.sh` on the server after migrating; the drill must list `pl_ksef_submissions`, `pl_ksef_invoice_documents`, `pl_ksef_status_events`, `pl_ksef_sync_cursors`, `pl_ksef_auth_sessions` |
+| 18 | Backup/restore verified with KSeF tables | **NOT REACHED** | run `sudo bash bin/data-safety-drill.sh` on the server after migrating; steps 3 (row counts for all eight `pl_ksef_*` tables), 11 (FA(3)/UPO XML byte-identical, SHA-256 equal to content) and 12 (submissions, status history, cursors) must PASS |
 | 19 | TEST environment green (all of 4–16 live) | **NOT REACHED** | `php artisan poland:ksef-test` → CONNECTED; one invoice ACCEPTED with UPO; one sync completed |
 | 20 | DEMO environment green | **NOT REACHED** | same as 19 with `KSEF_ENVIRONMENT=demo` |
 | 21 | Production credentials reviewed (token with exactly InvoiceRead + InvoiceWrite, generated in https://ap.ksef.mf.gov.pl/web/, owner known, expiry known) | **NOT REACHED** | recorded here with the token's fingerprint (never its value) |
@@ -39,8 +80,9 @@ test passed, and the installer defaults every deployment to
 
 The Laravel layer (migration, services, controller, Filament hooks) has been
 syntax-checked but **not executed** in this build environment (PHP 8.4, no
-foundation); the CI job `laravel-integration` and the server's first migration
-are where it runs. That is a gate 19 prerequisite, not a footnote.
+foundation); the CI job `laravel-integration` (which now runs
+`bin/ksef-runtime-check.sh`) and the server's first migration are where it
+runs. That is Gate 1, not a footnote.
 
 ## Activation — only after all 22 rows read PASS
 
@@ -88,5 +130,5 @@ time; the next authentication then fails with 450 and the status page says so.
 A passing unit test is not proof of a live government integration. The fake
 transport simulates KSeF's documented behaviour; it cannot simulate the
 undocumented parts, the rate limits under load, certificate rotation on a real
-date, or the DEMO base URL (derived from the documented host by the TEST
-pattern and marked "confirm on first contact" in PINNED.md).
+date, or whether the pinned DEMO and production hosts answer as documented
+(Gate 3, live half).

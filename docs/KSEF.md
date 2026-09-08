@@ -11,6 +11,13 @@ The deterministic tax engine remains the source of truth for every figure.
 KSeF is an external government system whose state is recorded beside the
 accounting record, never instead of it.
 
+**Status (exact vocabulary, see `docs/KSEF_PRODUCTION_GATE.md`):**
+CODE-COMPLETE · AUTOMATED-TESTED · LIVE-TEST-VERIFIED: NOT YET ·
+DEMO-VERIFIED: NOT YET · PRODUCTION: OFF. Accepted as CODE-COMPLETE /
+PRE-PRODUCTION, not as a verified live integration. The fourteen-gate
+verification sequence that changes those words runs on the real PHP 8.5
+deployment and is written in the gate document.
+
 ## Modes and environments
 
 | Mode | Meaning |
@@ -23,7 +30,10 @@ accounting record, never instead of it.
 
 Set by `KSEF_ENVIRONMENT`, `KSEF_TRANSPORT`, `KSEF_TRANSPORT_ENABLED`. One
 environment per deployment; credentials belong to an environment and are never
-used against another.
+used against another. The three URLs are pinned verbatim from official
+material (`modules/poland/resources/ksef/PINNED.md`, "Environments") and
+`KsefEnvironmentPinTest` fails if code or configuration drifts from the
+pinned files.
 
 ## Authentication
 

@@ -136,6 +136,38 @@ ORPHAN="$("${MYSQL[@]}" -N -B -e "
     WHERE o.settlement_id IS NOT NULL AND s.id IS NULL;" 2>/dev/null || echo error)"
 [ "$ORPHAN" = "0" ] && pass "brak osieroconych pozycji do zapłaty" || fail "$ORPHAN osieroconych pozycji"
 
+step "11 Dokumenty KSeF 2.0 (FA(3)/UPO) odtworzone bajt w bajt, z zachowanym SHA-256"
+# KSeF Gate 2: the immutable document store must come back identical AND its
+# stored hash must still be the hash of its content — both are checked, so a
+# restore that kept the hash but mangled the XML (or the reverse) is caught.
+K_DOC_BAD="$("${MYSQL[@]}" -N -B -e "
+    SELECT COUNT(*) FROM \`$VERIFY_DB\`.pl_ksef_invoice_documents v
+    JOIN \`$DB_NAME\`.pl_ksef_invoice_documents o ON o.id = v.id
+    WHERE o.xml_hash <> v.xml_hash
+       OR o.xml <> v.xml
+       OR LOWER(v.xml_hash) <> SHA2(v.xml, 256);" 2>/dev/null || echo error)"
+[ "$K_DOC_BAD" = "0" ] && pass "dokumenty FA(3)/UPO identyczne, SHA-256 zgodne z treścią" || fail "$K_DOC_BAD dokumentów KSeF różni się lub ma zły skrót"
+
+step "12 Wysyłki KSeF, historia stanów i kursory synchronizacji zachowane"
+K_SUB_BAD="$("${MYSQL[@]}" -N -B -e "
+    SELECT COUNT(*) FROM \`$VERIFY_DB\`.pl_ksef_submissions v
+    JOIN \`$DB_NAME\`.pl_ksef_submissions o ON o.id = v.id
+    WHERE o.state <> v.state
+       OR COALESCE(o.ksef_number,'') <> COALESCE(v.ksef_number,'')
+       OR COALESCE(o.invoice_reference,'') <> COALESCE(v.invoice_reference,'')
+       OR COALESCE(o.active_key,'') <> COALESCE(v.active_key,'');" 2>/dev/null || echo error)"
+[ "$K_SUB_BAD" = "0" ] && pass "wysyłki: stan, numer KSeF, referencje identyczne" || fail "$K_SUB_BAD wysyłek różni się"
+K_EV_SRC="$("${MYSQL[@]}" -N -B -e "SELECT COUNT(*) FROM \`$DB_NAME\`.pl_ksef_status_events" 2>/dev/null || echo error)"
+K_EV_DST="$("${MYSQL[@]}" -N -B -e "SELECT COUNT(*) FROM \`$VERIFY_DB\`.pl_ksef_status_events" 2>/dev/null || echo error)"
+[ "$K_EV_SRC" = "$K_EV_DST" ] && [ "$K_EV_SRC" != "error" ] && pass "historia stanów: $K_EV_SRC zdarzeń" || fail "historia stanów: $K_EV_SRC vs $K_EV_DST"
+K_CUR_BAD="$("${MYSQL[@]}" -N -B -e "
+    SELECT COUNT(*) FROM \`$VERIFY_DB\`.pl_ksef_sync_cursors v
+    JOIN \`$DB_NAME\`.pl_ksef_sync_cursors o ON o.id = v.id
+    WHERE COALESCE(o.synced_through,'') <> COALESCE(v.synced_through,'')
+       OR COALESCE(o.page_offset,-1) <> COALESCE(v.page_offset,-1)
+       OR COALESCE(o.in_progress,0) <> COALESCE(v.in_progress,0);" 2>/dev/null || echo error)"
+[ "$K_CUR_BAD" = "0" ] && pass "kursory synchronizacji identyczne" || fail "$K_CUR_BAD kursorów różni się"
+
 "${MYSQL[@]}" -e "DROP DATABASE \`$VERIFY_DB\`;"
 
 if [ "$FAILED" -eq 0 ]; then

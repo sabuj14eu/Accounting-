@@ -20,16 +20,31 @@ lists the checksums of every pinned file.
 | Auth XSD (XAdES path, not used yet) | `xsd/auth/schemat_auth_v2-1.xsd` |
 | Pinned on | 2026-09-08 |
 
-## Environments (from `srodowiska.md` of the pinned commit)
+## Environments — explicitly pinned official endpoints
 
-| Environment | Documentation | API base used by this application |
-|---|---|---|
-| TEST | https://api-test.ksef.mf.gov.pl/docs/v2 | `https://api-test.ksef.mf.gov.pl/v2` (stated in the OpenAPI document) |
-| DEMO | https://api-demo.ksef.mf.gov.pl/docs/v2 | `https://api-demo.ksef.mf.gov.pl/v2` (derived from the documented host by the TEST pattern — **confirm on first DEMO contact**) |
-| PRODUCTION | https://api.ksef.mf.gov.pl/docs/v2 | `https://api.ksef.mf.gov.pl/v2` (derived the same way — **confirm before the production pilot**) |
+Every API base URL below is taken verbatim from official Ministry material
+copied into `environments/` (checksummed in `SHA256SUMS`). None is inferred from a pattern.
 
-Base URLs live in `config/poland.php` (`ksef.base_urls`), not in code. The
-production URL cannot be overridden by an environment variable.
+| Environment | API base used by this application | Official source of the host | Official source of the `/v2` path |
+|---|---|---|---|
+| TEST | `https://api-test.ksef.mf.gov.pl/v2` | `openapi/open-api-2.7.1-te.json` → `servers[0].url`; `environments/ksef-client-java/application.yaml` → `base-uri` | `servers[0].url` and `suffix-uri: "v2"` in the same files |
+| DEMO | `https://api-demo.ksef.mf.gov.pl/v2` | `environments/ksef-client-java/application-demo.yaml` → `base-uri` (official reference client, commit `4e9b10a7`) | `suffix-uri: "v2"` (`application.yaml`, shared by all profiles) |
+| PRODUCTION | `https://api.ksef.mf.gov.pl/v2` | `environments/ksef-client-java/application-prod.yaml` → `base-uri` | same |
+
+Documentation and taxpayer-application hosts per environment come from
+`environments/srodowiska.md` (`ksef-docs`, commit `93b843d5`): TEST
+https://api-test.ksef.mf.gov.pl/docs/v2, DEMO https://api-demo.ksef.mf.gov.pl/docs/v2,
+PRODUCTION https://api.ksef.mf.gov.pl/docs/v2. The same document forbids
+production invoices or real taxpayer data on TEST and DEMO, and notes that TEST
+data is shared between integrators (use random test NIPs only).
+
+`KsefEnvironmentPinTest` asserts that `KsefEnvironment::pinnedApiBaseUrl()`,
+the defaults in `config/poland.php` and this table all equal the values in the
+pinned official files, so a re-pin that moves a host fails the suite instead
+of silently changing where invoices go. The production URL cannot be
+overridden by an environment variable (`KsefEndpoints`). "Confirmed live" is
+still a separate fact: Gate 3 of `docs/KSEF_PRODUCTION_GATE.md` records the
+first real response from each host.
 
 ## Endpoints this application uses
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-08 — KSeF accepted as CODE-COMPLETE / PRE-PRODUCTION; verification sequence recorded
+
+No schema change. Status vocabulary fixed: CODE-COMPLETE · AUTOMATED-TESTED ·
+LIVE-TEST-VERIFIED: NOT YET · DEMO-VERIFIED: NOT YET · PRODUCTION: OFF.
+
+- `docs/KSEF_PRODUCTION_GATE.md`: the fourteen-gate verification sequence
+  (runtime, database, endpoints, TEST auth, connection, FA(3) invoice,
+  rejection, timeout, duplicate, incoming, XML/UPO, security, DEMO,
+  production pilot), each mapped to the 22 rows, all NOT REACHED.
+- Environment URLs are now **explicitly pinned** from official material:
+  `modules/poland/resources/ksef/environments/` holds `srodowiska.md`
+  (ksef-docs) and the official reference client's `application*.yaml`
+  profiles, checksummed; `KsefEnvironment::pinnedApiBaseUrl()` and
+  `KsefEnvironmentPinTest` keep code, config and pin equal. The word
+  "derived" is gone.
+- `bin/ksef-runtime-check.sh` (Gate 1): boot, migration recorded, the eight
+  tables with unique constraints and indexes, commands, routes, Filament
+  page, health truthfulness, scheduler/queue, HTTP surface; HUMAN rows for
+  the screens. Run by CI (`laravel-integration`), by `bin/release-gate.sh`
+  (gate 14) and by the installer after every deploy.
+- `bin/deploy-contabo.sh`: **backup before migrate** (`backups/pre-migrate-
+  <date>-<commit>.sql.gz`, last ten kept, aborts if the dump is empty), the
+  queue worker is restarted so it runs the new code (previously `enable
+  --now` left a running worker on the old release), `queue:restart` signal,
+  Gate 1 verification and a KSeF status block in the summary. Default branch
+  is the branch the script ships on.
+- `bin/data-safety-drill.sh`: steps 11–12 — FA(3)/UPO documents byte-identical
+  with SHA-256 equal to content, submissions (state, KSeF number, references,
+  active key), status-event counts and sync cursors identical after restore.
+
 ## 2026-09-08 — KSeF 2.0 / FA(3) integration (built, unit-tested, not live)
 
 The official KSeF 2.0 machine-to-machine API, version 2.7.1, pinned from the
