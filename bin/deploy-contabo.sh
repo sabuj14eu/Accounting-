@@ -384,6 +384,17 @@ else {
 }
 " 2>/dev/null | tail -1)"
 
+# A user is not an administrator. canAccessPanel() refuses the /admin panel to
+# anyone without the super_admin role, and upstream grants it only through
+# seeders that also create a demo account, so an installer that stops at
+# "user created" hands over an account the panel rejects.
+if [ "$CREATED" = "created" ]; then
+    step "12b/12  Nadanie roli administratora"
+    FOUNDATION="$APP_ROOT/foundation" APP_USER="$APP_USER" PHP_BIN="$PHP_BIN" \
+        bash "$APP_ROOT/app/bin/grant-admin.sh" "$ADMIN_EMAIL" </dev/null \
+        || warn "Nie udało się nadać roli administratora. Uruchom: sudo bash $APP_ROOT/app/bin/grant-admin.sh $ADMIN_EMAIL"
+fi
+
 sudo -u "$APP_USER" "$PHP_BIN" artisan config:cache >/dev/null 2>&1 || true
 sudo -u "$APP_USER" "$PHP_BIN" artisan route:cache >/dev/null 2>&1 || true
 sudo -u "$APP_USER" "$PHP_BIN" artisan view:cache  >/dev/null 2>&1 || true
