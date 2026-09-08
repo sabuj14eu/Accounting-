@@ -83,6 +83,11 @@ step "2/8  Użytkownik systemowy i katalogi (własne)"
 id -u "$APP_USER" >/dev/null 2>&1 || useradd -r -m -d "$APP_ROOT" -s /bin/bash "$APP_USER"
 mkdir -p "$APP_ROOT/public" "$STORAGE_ROOT" "$BACKUP_DIR"
 chown -R "$APP_USER:$APP_USER" "$APP_ROOT" "$STORAGE_ROOT"
+# useradd -m creates the home with mode 750 on current Ubuntu, and nginx runs
+# as www-data: it then cannot enter public/, try_files falls through to
+# index.php, and PHP-FPM answers 404 "File not found" for a page that exists.
+# The root and public/ must be traversable; the storage root must not be.
+chmod 755 "$APP_ROOT" "$APP_ROOT/public"
 chmod 750 "$STORAGE_ROOT"
 chown root:root "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
 info "$APP_USER : $APP_ROOT  storage: $STORAGE_ROOT  backup: $BACKUP_DIR"
