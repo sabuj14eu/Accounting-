@@ -106,15 +106,19 @@ else
     info "źródło: $REPO (gałąź $BRANCH) — wymaga klucza deploy, repozytorium jest prywatne"
 fi
 
+# Cloned as root, not as $APP_USER: the source checkout usually lives under
+# /root, which the application user cannot enter, so a clone run as that user
+# reports "repository does not exist". Ownership is handed over afterwards.
+GIT="git -c safe.directory=$APP_ROOT/app"
 if [ -d "$APP_ROOT/app/.git" ]; then
-    sudo -u "$APP_USER" git -C "$APP_ROOT/app" remote set-url origin "$SOURCE"
-    sudo -u "$APP_USER" git -C "$APP_ROOT/app" fetch origin "$BRANCH"
-    sudo -u "$APP_USER" git -C "$APP_ROOT/app" checkout -B "$BRANCH" "origin/$BRANCH"
+    $GIT -C "$APP_ROOT/app" remote set-url origin "$SOURCE"
+    $GIT -C "$APP_ROOT/app" fetch origin "$BRANCH"
+    $GIT -C "$APP_ROOT/app" checkout -B "$BRANCH" "origin/$BRANCH"
 else
-    [ "$SOURCE" = "$LOCAL_SOURCE" ] && chmod -R o+rX "$LOCAL_SOURCE" 2>/dev/null || true
-    sudo -u "$APP_USER" git clone --branch "$BRANCH" "$SOURCE" "$APP_ROOT/app"
+    git clone --branch "$BRANCH" "$SOURCE" "$APP_ROOT/app"
 fi
-info "$(sudo -u "$APP_USER" git -C "$APP_ROOT/app" log --oneline -1)"
+chown -R "$APP_USER:$APP_USER" "$APP_ROOT/app"
+info "$($GIT -C "$APP_ROOT/app" log --oneline -1)"
 ( cd "$APP_ROOT/app/shop-intelligence" && sudo -u "$APP_USER" bash bin/check-shop-isolation.sh >/dev/null ) \
     || die "Strażnik izolacji nie przeszedł — nie przygotowuję serwera."
 info "izolacja Shop Intelligence: potwierdzona mechanicznie"
