@@ -35,6 +35,15 @@ wrong.
 **Owner: the taxpayer's accountant. Proof required: `status => 'official'` with
 a source URL on every version, plus the note here deleted.**
 
+### Outbound e-mail is not configured
+The customer flow requires e-mail verification and fails closed: with
+`MAIL_MAILER=log` nobody can register. Production needs SMTP credentials in
+`/srv/accounting/foundation/.env` (`docs/DEPLOYMENT.md`, "Authentication").
+Until then the only accounts are the ones an operator creates, or the demo
+override `ACCOUNT_REQUIRE_EMAIL_VERIFICATION=false`, which must not survive
+into real use. **Owner: the operator. Proof: a verification e-mail received
+by a real mailbox, and the override absent from `.env`.**
+
 ### Which ryczałt rate applies has not been determined
 `examples/profile.json` ships 3% (trade in goods) as an example, not as advice.
 The rate depends on what the business actually does under art. 12, a shop

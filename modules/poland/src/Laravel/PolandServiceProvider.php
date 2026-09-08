@@ -28,6 +28,14 @@ final class PolandServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(dirname(__DIR__, 2).'/config/poland.php', 'poland');
 
+        // One customer authentication flow. Applied while the application is
+        // BOOTING: every panel provider has registered by then, and Filament
+        // has not yet read the panels to define their routes, so this holds
+        // whatever order the packages boot in. See Auth\CustomerPanel.
+        $this->app->booting(static function (): void {
+            (new \Poland\Laravel\Auth\CustomerPanel())->apply();
+        });
+
         $this->app->singleton(RateRepository::class, function ($app): RateRepository {
             $directory = (string) config('poland.rates_path', dirname(__DIR__, 2).'/config/rates');
 
@@ -147,6 +155,23 @@ final class PolandServiceProvider extends ServiceProvider
 
         if (file_exists($routes = dirname(__DIR__, 2).'/routes/web.php')) {
             $this->loadRoutesFrom($routes);
+        }
+
+        if ((bool) config('poland.customer_panel.enabled', true)) {
+            // Upstream's /, /login, /register and /forgot-password land on the
+            // customer panel, and a customer who creates an account gets a
+            // team of their own instead of joining the first team in the table.
+            $this->app['router']->pushMiddlewareToGroup(
+                'web',
+                \Poland\Laravel\Http\Middleware\RedirectLegacyAuthPages::class,
+            );
+
+            if (class_exists(\Filament\Auth\Events\Registered::class)) {
+                $this->app['events']->listen(
+                    \Filament\Auth\Events\Registered::class,
+                    \Poland\Laravel\Auth\PersonalTeamOnRegistration::class,
+                );
+            }
         }
 
         if ($this->app->runningInConsole()) {

@@ -252,6 +252,14 @@ set_env POLAND_REQUIRE_OFFICIAL_RATES true
 # "no invoices found".
 set_env KSEF_TRANSPORT_ENABLED false
 set_env KSEF_TRANSPORT disabled
+
+# ONE customer authentication flow (see docs/DEPLOYMENT.md, "Authentication").
+# Verification stays required. With MAIL_MAILER=log no e-mail can be
+# delivered, so registration is OFF until SMTP is configured — or until an
+# operator deliberately sets ACCOUNT_REQUIRE_EMAIL_VERIFICATION=false.
+grep -q "^ACCOUNT_REQUIRE_EMAIL_VERIFICATION=" "$ENV_FILE" || set_env ACCOUNT_REQUIRE_EMAIL_VERIFICATION true
+grep -q "^ACCOUNT_REGISTRATION_ENABLED=" "$ENV_FILE" || set_env ACCOUNT_REGISTRATION_ENABLED true
+grep -q "^ACCOUNT_BRAND_NAME=" "$ENV_FILE" || set_env ACCOUNT_BRAND_NAME '"SignalMesh Accounting"'
 chown "$APP_USER:$APP_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
 cd "$APP_ROOT/foundation"
@@ -408,11 +416,11 @@ cat <<SUMMARY
   GOTOWE — aplikacja księgowa działa
 ################################################################################
 
-  ADRES        $SCHEME://$DOMAIN
-  PULPIT       $SCHEME://$DOMAIN/poland      <- "co muszę zapłacić"
-  LOGOWANIE    $SCHEME://$DOMAIN/admin/login   <- panel administracyjny
-               $SCHEME://$DOMAIN/login         <- to samo konto, prosta strona
-  REJESTRACJA  wyłączona — konta zakłada administrator
+  KLIENT       $SCHEME://$DOMAIN               <- jedno wejście: logowanie / rejestracja / weryfikacja e-mail
+  PULPIT PL    $SCHEME://$DOMAIN/poland        <- "co muszę zapłacić" (po zalogowaniu)
+  ADMIN        $SCHEME://$DOMAIN/admin/login   <- osobno, tylko dla administratorów
+  REJESTRACJA  wymaga działającej poczty (MAIL_MAILER=smtp). Bez niej jest WYŁĄCZONA.
+               Na czas demo: ACCOUNT_REQUIRE_EMAIL_VERIFICATION=false w $ENV_FILE
 
   KONTO ADMINISTRATORA
 SUMMARY

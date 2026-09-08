@@ -166,6 +166,19 @@ sed -i -E 's|^(\s*)Features::registration\(\),|\1// Features::registration(), //
 grep -q '^\s*// Features::registration()' "$TARGET/config/fortify.php" \
     || die "Nie udało się wyłączyć rejestracji w config/fortify.php — sprawdź plik ręcznie."
 
+# E-mail verification is enforced only for a user model that declares it.
+# Upstream's User has the trait's methods (via Illuminate's base User) but
+# not the interface, so Filament and Fortify would skip verification
+# silently. Adding the interface is the whole change. Idempotent.
+say "Włączam weryfikację e-mail w modelu User (interfejs MustVerifyEmail)"
+if ! grep -q 'MustVerifyEmail' "$TARGET/app/Models/User.php"; then
+    sed -i -E 's/^(class User extends Authenticatable implements )/\1\\Illuminate\\Contracts\\Auth\\MustVerifyEmail, /' \
+        "$TARGET/app/Models/User.php"
+fi
+grep -q 'implements \\Illuminate\\Contracts\\Auth\\MustVerifyEmail' "$TARGET/app/Models/User.php" \
+    || die "Nie udało się dodać MustVerifyEmail do app/Models/User.php — sprawdź plik ręcznie."
+php -l "$TARGET/app/Models/User.php" >/dev/null || die "app/Models/User.php nie parsuje się po zmianie."
+
 say "package:discover"
 ( cd "$TARGET" && php artisan package:discover --ansi )
 

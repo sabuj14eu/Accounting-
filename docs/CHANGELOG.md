@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-08 (tenth) — one customer authentication flow
+
+Three login pages that looked like three products, a registration that asked
+for property-management roles and attached every new customer to the first
+team in the database. Replaced, from inside the Poland module, without editing
+upstream's panel providers:
+
+- The customer panel at `/app` owns sign-in, sign-up, password reset and
+  e-mail verification (`Poland\Laravel\Auth\CustomerPanel`, applied while
+  the application is booting so package order cannot defeat it).
+- Upstream's `/`, `/login`, `/register`, `/forgot-password`, `/dashboard`
+  redirect into it (`RedirectLegacyAuthPages`; decision table
+  `AuthPageRedirects`, unit-tested).
+- A customer who registers gets a personal team and no role
+  (`PersonalTeamOnRegistration`).
+- Verification is required and fails closed: with `MAIL_MAILER=log`
+  registration is off; `ACCOUNT_REQUIRE_EMAIL_VERIFICATION=false` is the
+  explicit demo override. The installer adds `MustVerifyEmail` to upstream's
+  User model so verification is actually enforced.
+- `/admin/login` stays separate, super_admin only, no registration; CI
+  asserts both halves.
+
 ## 2026-09-08 (ninth) — both applications reach the Contabo box
 
 - **Shop Intelligence infrastructure** prepared at `shop.signalmesh.dev`:

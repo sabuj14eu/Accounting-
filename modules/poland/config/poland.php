@@ -35,6 +35,29 @@ return [
     ],
 
     /*
+     * The customer panel: ONE authentication flow for the whole application.
+     *
+     * account.signalmesh.dev → sign in / create account → e-mail verification
+     * → the accounting application. Upstream's own /login and /register are
+     * redirected here; /admin/login stays separate and admits only
+     * administrators.
+     *
+     * require_email_verification MUST stay true in production. When it is
+     * true and the mailer cannot deliver (MAIL_MAILER=log), registration is
+     * switched off rather than trapping people behind a prompt no e-mail
+     * will satisfy. Setting it to false is an explicit operator decision.
+     */
+    'customer_panel' => [
+        'enabled' => (bool) env('ACCOUNT_CUSTOMER_PANEL_ENABLED', true),
+        'id' => 'app',
+        'path' => 'app',
+        'brand' => env('ACCOUNT_BRAND_NAME', 'SignalMesh Accounting'),
+        'registration' => (bool) env('ACCOUNT_REGISTRATION_ENABLED', true),
+        'require_email_verification' => (bool) env('ACCOUNT_REQUIRE_EMAIL_VERIFICATION', true),
+        'navigation_label' => 'Rozliczenie miesiąca (PL)',
+    ],
+
+    /*
      * KSeF. Base URLs are configuration, never constants: the Ministry has
      * moved them before and a hard-coded host becomes a silent outage.
      *

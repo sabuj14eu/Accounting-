@@ -20,6 +20,51 @@
 > **Production accounting is still not reached**: rates unverified, pilot
 > not done (`docs/OPEN_ITEMS.md`).
 
+## Authentication — one customer flow
+
+```
+account.signalmesh.dev  →  sign in / create account  →  e-mail verification  →  the application
+```
+
+The customer panel (`/app`) owns the whole flow with Filament's own pages, so
+every screen is one product: `/app/login`, `/app/register`,
+`/app/password-reset/request`, `/app/email-verification/prompt`. Upstream's
+Jetstream pages still exist and are **redirected** into it by
+`Poland\Laravel\Http\Middleware\RedirectLegacyAuthPages`: `/`, `/login`,
+`/register`, `/forgot-password`, `/dashboard`. The decision table is
+`Poland\Laravel\Auth\AuthPageRedirects`, tested without a framework.
+
+The administration panel is separate by design: `/admin/login`, admits only
+`super_admin` (`bin/grant-admin.sh`), never offers registration, and is never a
+redirect target for a customer.
+
+What upstream did that this replaces: `/register` required the customer to
+choose a role from `tenant, buyer, seller, landlord, contractor` (a
+property-management boilerplate), and attached every new user to **the first
+team in the database**, so all self-registered customers would have shared one
+set of books. Now every customer who registers gets a personal team
+(`Poland\Laravel\Auth\PersonalTeamOnRegistration`) and no role.
+
+**E-mail verification is required and fails closed.** With `MAIL_MAILER=log`
+no e-mail can be delivered, so registration is switched off rather than
+letting people register into a prompt nothing will ever satisfy. Two ways out:
+
+```bash
+# 1. Real e-mail (the production answer): put SMTP credentials in
+#    /srv/accounting/foundation/.env and re-cache.
+MAIL_MAILER=smtp
+MAIL_HOST=...   MAIL_PORT=587   MAIL_USERNAME=...   MAIL_PASSWORD=...
+MAIL_ENCRYPTION=tls   MAIL_FROM_ADDRESS=no-reply@signalmesh.dev   MAIL_FROM_NAME="SignalMesh Accounting"
+
+# 2. Demo only, an explicit operator decision:
+ACCOUNT_REQUIRE_EMAIL_VERIFICATION=false
+```
+
+after either: `sudo -u accounting /usr/bin/php8.5 artisan config:cache && route:cache`.
+
+Configuration keys (`config/poland.php`, `customer_panel`): `enabled`,
+`registration`, `require_email_verification`, `brand`.
+
 ## Production must refuse unverified rates
 
 ```bash
