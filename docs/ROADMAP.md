@@ -47,6 +47,10 @@ Nothing about dates, URLs or schema versions may be hard-coded.
 Production credentials are not installed until the full suite passes against the
 KSeF **test** environment.
 
+**Status 2026-09-08:** built against KSeF API 2.7.1 / FA(3) and unit-tested
+(`docs/KSEF.md`); the first live TEST run is the next step and is tracked in
+`docs/KSEF_PRODUCTION_GATE.md`. Production remains OFF.
+
 ## Phase 4 — JPK
 
 - JPK_V7M / V7K from the VAT registers, with applicability driven by the

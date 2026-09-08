@@ -115,11 +115,21 @@ final class CredentialSecurityTest extends TestCase
         }
     }
 
-    public function test_property_8_invoice_write_cannot_be_obtained_at_all(): void
+    public function test_property_8_credential_management_cannot_be_obtained_at_all(): void
     {
-        self::assertSame([KsefScope::InvoiceRead], KsefScope::allowed());
+        // InvoiceRead and InvoiceWrite are the whole allowed set (decision of
+        // 2026-09-08, recorded on the enum). Anything that manages other
+        // people's access is refused by name.
+        self::assertSame([KsefScope::InvoiceRead, KsefScope::InvoiceWrite], KsefScope::allowed());
 
-        foreach ([KsefScope::InvoiceWrite, KsefScope::CredentialsManage] as $scope) {
+        foreach ([
+            KsefScope::CredentialsManage,
+            KsefScope::CredentialsRead,
+            KsefScope::Introspection,
+            KsefScope::SubunitManage,
+            KsefScope::EnforcementOperations,
+            KsefScope::CollectiveIdentifierManage,
+        ] as $scope) {
             self::assertFalse($scope->isAllowed());
 
             try {

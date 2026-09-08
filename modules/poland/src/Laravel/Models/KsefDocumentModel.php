@@ -40,7 +40,10 @@ class KsefDocumentModel extends Model
     protected static function booted(): void
     {
         static::updating(static function (self $model): void {
-            if ($model->isDirty('original_xml') || $model->isDirty('ksef_number')) {
+            // Filling in an XML that was missing (fetched on a later run) is
+            // allowed; replacing an XML that exists is not.
+            $xmlReplaced = $model->isDirty('original_xml') && $model->getOriginal('original_xml') !== null;
+            if ($xmlReplaced || $model->isDirty('ksef_number')) {
                 throw new RuntimeException(
                     'Oryginalny XML faktury i numer KSeF są niezmienne. KSeF jest dokumentem '
                     .'źródłowym — zmiana tutaj rozjechałaby naszą kopię z kopią organu.',
@@ -74,9 +77,23 @@ class KsefDocumentModel extends Model
         return $this->gross === null ? null : Money::parse((string) $this->gross);
     }
 
-    public function verifyXmlChecksum(): bool
+    public function verifyXmlChecksum(): ?bool
     {
-        return hash('sha256', $this->original_xml) === $this->xml_checksum;
+        if ($this->original_xml === null || $this->xml_checksum === null) {
+            return null; // nothing to verify: the body was never fetched
+        }
+
+        return hash('sha256', (string) $this->original_xml) === $this->xml_checksum;
+    }
+
+    public function hasXml(): bool
+    {
+        return $this->original_xml !== null && $this->original_xml !== '';
+    }
+
+    public function events()
+    {
+        return $this->hasMany(KsefStatusEventModel::class, 'ksef_document_id')->orderBy('occurred_at');
     }
 
     public function isCorrection(): bool

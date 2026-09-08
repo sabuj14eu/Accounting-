@@ -184,6 +184,10 @@ set_env POLAND_REQUIRE_OFFICIAL_RATES true
 # "no invoices found".
 set_env KSEF_TRANSPORT_ENABLED false
 set_env KSEF_TRANSPORT disabled
+# The first real KSeF environment is TEST; production is a documented gate
+# (docs/KSEF_PRODUCTION_GATE.md), never an installer default.
+set_env KSEF_ENVIRONMENT test
+set_env KSEF_SYNC_SCHEDULE_ENABLED false
 chown "$APP_USER:$APP_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
 cd "$APP_ROOT/foundation"

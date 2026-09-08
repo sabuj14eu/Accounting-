@@ -17,7 +17,8 @@ Government PDFs ──┘                                             Payment ch
 | FA invoice XML parser | **Built, tested.** Namespace-agnostic, reads FA(1)/(2)/(3) and an unreleased schema version |
 | KSeF ingest: dedup, incremental cursor, immutable XML, REQUIRES REVIEW propagation | **Built, executed end to end** |
 | Encrypted token storage, InvoiceRead-only scope | **Built, tested** — ciphertext at rest, redacted everywhere, `InvoiceWrite` refused |
-| KSeF HTTP transport | **NOT built.** `ksef.mf.gov.pl` is unreachable from the build environment (blocked at the gateway), so no client could be written against the real API or tested against it. `UnconfiguredKsefClient` refuses until one exists |
+| KSeF HTTP transport (KSeF 2.0 API 2.7.1, FA(3)) | **Built against the pinned official OpenAPI and XSDs, unit-tested (20 classes), NOT live-tested.** `api-test.ksef.mf.gov.pl` is unreachable from the build environment; the first real contact is a TEST-environment run recorded in `docs/KSEF_PRODUCTION_GATE.md`. See `docs/KSEF.md` |
+| KSeF outgoing invoices (FA(3) generation, official XSD validation, interactive session, status, UPO) | **Built, unit-tested, NOT live-tested.** Sending is an explicit two-step human action |
 | Bank import: CSV, MT940, camt.053 | **Built, tested** against real-format fixtures, with balance reconciliation |
 | Bank import: PDF | **Refuses by design** — see below |
 | Classification and matching | **Built, tested** — 16 tests |
@@ -44,8 +45,10 @@ than returning a plausible empty value:
 
 ## KSeF
 
-**InvoiceRead only.** `KsefScope::allowed()` returns exactly one scope. The write
-scopes exist in the enum solely so a refusal can name them — granting one is a
+**InvoiceRead and InvoiceWrite, nothing else.** `KsefScope::allowed()` returns
+exactly those two (InvoiceWrite added 2026-09-08 by explicit specification —
+the application now issues invoices). Credential management, introspection and
+the rest exist in the enum solely so a refusal can name them — granting one is a
 code change with a reason, never a config edit. `KsefCredentialModel::revealToken()`
 re-checks the scope before handing out a token, so a row edited in the database
 to say `InvoiceWrite` still cannot be used.
@@ -186,12 +189,16 @@ asserts `FilingChannel::automated()` stays false for all of them.
 
 ## Before turning KSeF on
 
-1. Implement `KsefClient` against the **current** official API. Do not write it
-   from the documentation in this repository — verify the endpoints,
-   authentication and schema versions against the Ministry's current
-   publication, as `docs/RATE_VERIFICATION.md` requires for rates.
-2. Test against the KSeF **test** environment first.
-3. Generate a token with **InvoiceRead only**.
-4. Set `KSEF_ENABLED=true` and the base URL. Never commit the token.
-5. Run one sync over a closed month and compare what arrived against what the
-   taxpayer knows they bought.
+The transport exists now (`docs/KSEF.md`, `docs/KSEF_IMPLEMENTATION.md`). What
+remains is contact with the real system, in this order and no other:
+
+1. `KSEF_ENVIRONMENT=test`, `KSEF_TRANSPORT=real`, `KSEF_TRANSPORT_ENABLED=true`
+   on a deployment that can reach `api-test.ksef.mf.gov.pl`.
+2. In https://ap-test.ksef.mf.gov.pl/web/ generate a token with exactly
+   **InvoiceRead + InvoiceWrite** (the 2026-09-08 decision widened the scope
+   from read-only because the application now issues invoices). Paste it in
+   Settings → Poland → KSeF, step 3. Never commit it, never log it.
+3. **Testuj połączenie** must read CONNECTED with both permissions observed.
+4. One invoice to ACCEPTED with a UPO; one incremental sync to completion.
+5. Repeat on DEMO. Then, and only then, the production gate
+   (`docs/KSEF_PRODUCTION_GATE.md`).

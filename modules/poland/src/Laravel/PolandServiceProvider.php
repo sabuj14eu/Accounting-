@@ -101,13 +101,36 @@ final class PolandServiceProvider extends ServiceProvider
             new \Poland\Banking\Parsing\PdfStatementParser(),
         ]);
 
+        // KSeF 2.0 / FA(3). One transport per deployment, chosen through the
+        // gate from configuration; everything above it is framework-free and
+        // reached through these thin services.
+        $this->app->singleton(
+            \Poland\Laravel\Support\Ksef\KsefTransportFactory::class,
+            fn ($app): \Poland\Laravel\Support\Ksef\KsefTransportFactory
+                => new \Poland\Laravel\Support\Ksef\KsefTransportFactory((array) config('poland.ksef', [])),
+        );
+        $this->app->singleton(
+            \Poland\Laravel\Support\Ksef\LaravelKsefAuditSink::class,
+            fn ($app): \Poland\Laravel\Support\Ksef\LaravelKsefAuditSink
+                => new \Poland\Laravel\Support\Ksef\LaravelKsefAuditSink($app->make(AuditRecorder::class)),
+        );
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\KsefErrorRecorder::class);
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\ErpInvoiceSnapshotBuilder::class);
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\KsefSettingsService::class);
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\KsefTokenService::class);
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\KsefConnectionService::class);
+        $this->app->singleton(\Poland\Laravel\Support\Ksef\KsefSubmissionService::class);
+
         $this->app->singleton(
             \Poland\Laravel\Support\KsefIngestService::class,
             fn ($app): \Poland\Laravel\Support\KsefIngestService
                 => new \Poland\Laravel\Support\KsefIngestService(
-                    $app->make(\Poland\Ksef\Contracts\KsefClient::class),
+                    $app->make(\Poland\Laravel\Support\Ksef\KsefTransportFactory::class),
+                    $app->make(\Poland\Laravel\Support\Ksef\KsefSettingsService::class),
+                    $app->make(\Poland\Laravel\Support\Ksef\KsefTokenService::class),
                     $app->make(\Poland\Ksef\Parsing\FaInvoiceParser::class),
-                    $app->make(AuditRecorder::class),
+                    $app->make(\Poland\Laravel\Support\Ksef\LaravelKsefAuditSink::class),
+                    $app->make(\Poland\Laravel\Support\Ksef\KsefErrorRecorder::class),
                 ),
         );
 
@@ -149,8 +172,35 @@ final class PolandServiceProvider extends ServiceProvider
             $this->loadRoutesFrom($routes);
         }
 
+        // KSeF state on the ERP's own screens, through Filament render hooks.
+        // No-op when Filament is not installed (the module's own test suite).
+        \Poland\Laravel\Filament\KsefRenderHooks::register();
+
         if ($this->app->runningInConsole()) {
-            $this->commands([ReportCommand::class, VerifyRatesCommand::class, RateProvenanceCommand::class]);
+            $this->commands([
+                ReportCommand::class,
+                VerifyRatesCommand::class,
+                RateProvenanceCommand::class,
+                \Poland\Laravel\Console\KsefTestCommand::class,
+                \Poland\Laravel\Console\KsefSyncCommand::class,
+                \Poland\Laravel\Console\KsefPollCommand::class,
+                \Poland\Laravel\Console\KsefHealthCommand::class,
+            ]);
+
+            // Status polling is safe to automate: it only reads. Incoming sync
+            // is opt-in (KSEF_SYNC_SCHEDULE_ENABLED); sending is never scheduled.
+            $this->app->booted(function (): void {
+                if (! class_exists(\Illuminate\Console\Scheduling\Schedule::class)) {
+                    return;
+                }
+                $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
+                if ((bool) config('poland.ksef.transport_enabled', false)) {
+                    $schedule->command('poland:ksef-poll')->everyFiveMinutes()->withoutOverlapping();
+                    if ((bool) config('poland.ksef.sync.schedule_enabled', false)) {
+                        $schedule->command('poland:ksef-sync')->dailyAt((string) config('poland.ksef.sync.schedule_time', '03:15'))->withoutOverlapping();
+                    }
+                }
+            });
 
             $this->publishes([
                 dirname(__DIR__, 2).'/config/poland.php' => config_path('poland.php'),

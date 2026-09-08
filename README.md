@@ -76,6 +76,13 @@ text", and a PDF statement is not zero transactions. `docs/AUTOMATION.md` has
 the detail, including what is built and what still needs a network the build
 environment could not reach.
 
+The **KSeF 2.0 / FA(3) integration** (official API 2.7.1, pinned) is built and
+unit-tested: token authentication, FA(3) generation with official XSD
+validation, explicit two-step sending, status and UPO, incremental incoming
+sync with page-atomic cursors, a five-step configuration wizard. It has **not
+yet touched the real TEST environment** — `docs/KSEF.md` and
+`docs/KSEF_PRODUCTION_GATE.md` say exactly what is proven and what is not.
+
 ## Release gate
 
 ```bash

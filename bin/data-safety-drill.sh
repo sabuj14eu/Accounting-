@@ -36,6 +36,8 @@ TABLES=(users
         pl_tax_profiles
         pl_sales_reports pl_sales_report_lines pl_purchase_summaries
         pl_ksef_credentials pl_ksef_documents pl_ksef_sync_state
+        pl_ksef_auth_sessions pl_ksef_invoice_documents pl_ksef_submissions pl_ksef_status_events
+        pl_ksef_sync_cursors pl_ksef_sync_runs pl_ksef_errors pl_ksef_customer_identifiers
         pl_bank_statements pl_bank_transactions pl_transaction_classifications
         pl_government_documents
         pl_settlements pl_report_versions pl_prepared_documents

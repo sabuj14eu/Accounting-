@@ -198,18 +198,22 @@ final class CertaintyTest extends TestCase
         self::assertCount(3, $report->blocking());
     }
 
-    public function test_only_invoice_read_is_an_allowed_scope(): void
+    public function test_only_the_invoice_scopes_are_allowed(): void
     {
-        self::assertSame([KsefScope::InvoiceRead], KsefScope::allowed());
+        // 2026-09-08: InvoiceWrite added by explicit specification (outgoing
+        // invoices). Credential management and the rest stay refused.
+        self::assertSame([KsefScope::InvoiceRead, KsefScope::InvoiceWrite], KsefScope::allowed());
         self::assertTrue(KsefScope::InvoiceRead->isAllowed());
-        self::assertFalse(KsefScope::InvoiceWrite->isAllowed());
+        self::assertTrue(KsefScope::InvoiceWrite->isAllowed());
         self::assertFalse(KsefScope::CredentialsManage->isAllowed());
+        self::assertFalse(KsefScope::CredentialsRead->isAllowed());
+        self::assertFalse(KsefScope::Introspection->isAllowed());
     }
 
-    public function test_a_write_scope_is_refused_with_an_explanation(): void
+    public function test_a_credentials_scope_is_refused_with_an_explanation(): void
     {
         $this->expectExceptionMessageMatches('/nie jest dozwolony/');
-        KsefScope::InvoiceWrite->assertAllowed();
+        KsefScope::CredentialsManage->assertAllowed();
     }
 
     public function test_an_unconfigured_ksef_client_refuses_rather_than_returning_nothing(): void

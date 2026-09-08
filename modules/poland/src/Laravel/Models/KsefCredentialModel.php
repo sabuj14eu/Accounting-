@@ -33,7 +33,59 @@ class KsefCredentialModel extends Model
         'enabled' => 'bool',
         'token_valid_until' => 'datetime',
         'last_verified_at' => 'datetime',
+        'token_permissions' => 'array',
+        'observed_permissions' => 'array',
+        'last_connection_test_at' => 'datetime',
+        'last_connection_ok' => 'bool',
+        'last_auth_at' => 'datetime',
+        'last_sync_at' => 'datetime',
+        'last_sync_ok' => 'bool',
+        'production_enabled_at' => 'datetime',
     ];
+
+    /** Wizard steps, in order. `setup_step` is the highest step completed. */
+    public const STEP_ENVIRONMENT = 1;
+
+    public const STEP_SELLER = 2;
+
+    public const STEP_TOKEN = 3;
+
+    public const STEP_INVOICE_DEFAULTS = 4;
+
+    public const STEP_TESTED = 5;
+
+    /** Everything a real connection needs, regardless of whether it was tested. */
+    public function isConfigured(): bool
+    {
+        return $this->hasToken()
+            && preg_match('/^\d{10}$/', (string) $this->nip) === 1
+            && trim((string) $this->seller_address_line1) !== '';
+    }
+
+    /** @return list<string> what is still missing, in words a screen can show */
+    public function missingConfiguration(): array
+    {
+        $missing = [];
+        if (preg_match('/^\d{10}$/', (string) $this->nip) !== 1) {
+            $missing[] = 'NIP podatnika';
+        }
+        if (trim((string) $this->seller_address_line1) === '') {
+            $missing[] = 'adres sprzedawcy na fakturze';
+        }
+        if (! $this->hasToken()) {
+            $missing[] = 'token KSeF';
+        }
+
+        return $missing;
+    }
+
+    /** @return list<string> */
+    public function permissionsMissing(): array
+    {
+        $observed = (array) ($this->observed_permissions ?? []);
+
+        return $observed === [] ? [] : KsefScope::missingFrom($observed);
+    }
 
     public function environmentEnum(): KsefEnvironment
     {
@@ -56,6 +108,15 @@ class KsefCredentialModel extends Model
         $this->scopeEnum()->assertAllowed();
 
         return $this->token_encrypted;
+    }
+
+    /** Store a new KSeF token: encrypted value plus a display fingerprint, never the value anywhere else. */
+    public function storeToken(string $token): void
+    {
+        $this->token_encrypted = $token;
+        $this->token_fingerprint = substr(hash('sha256', $token), 0, 12);
+        $this->last_verified_at = null;
+        $this->observed_permissions = null;
     }
 
     public function hasToken(): bool

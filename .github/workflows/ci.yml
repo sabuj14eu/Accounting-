@@ -109,7 +109,7 @@ jobs:
       - name: The module's tables exist
         working-directory: foundation
         run: |
-          for t in pl_tax_profiles pl_sales_reports pl_settlements pl_audit_events pl_prepared_documents; do
+          for t in pl_tax_profiles pl_sales_reports pl_settlements pl_audit_events pl_prepared_documents pl_ksef_submissions pl_ksef_invoice_documents pl_ksef_status_events pl_ksef_sync_cursors pl_ksef_auth_sessions pl_ksef_errors pl_ksef_customer_identifiers; do
             php artisan migrate:status | grep -q poland || true
             sqlite3 database/database.sqlite ".tables" | grep -q "$t" \
               || { echo "missing table $t"; exit 1; }
@@ -120,11 +120,18 @@ jobs:
         run: |
           php artisan list | grep -q 'poland:report'
           php artisan list | grep -q 'poland:verify-rates'
+          php artisan list | grep -q 'poland:ksef-test'
           php artisan poland:verify-rates --months=3
+          # Transport disabled by default: the health command must say so and exit non-zero.
+          if php artisan poland:ksef-health; then echo "ksef-health reported connected with a disabled transport"; exit 1; fi
+          php artisan poland:ksef-health --json | grep -q '"overall": "NOT CONNECTED"'
 
       - name: Routes are registered
         working-directory: foundation
-        run: php artisan route:list | grep -q 'poland.dashboard'
+        run: |
+          php artisan route:list | grep -q 'poland.dashboard'
+          php artisan route:list | grep -q 'poland.ksef.status'
+          php artisan route:list | grep -q 'poland-ksef'
 
       # Rates are still sourced from secondary publications. This asserts the
       # engine SAYS so rather than asserting that they are fine.

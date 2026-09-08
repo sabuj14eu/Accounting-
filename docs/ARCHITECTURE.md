@@ -83,6 +83,7 @@ drift, and the drift would be invisible.
 | `pl_purchase_summaries` | deductible costs and input VAT per month |
 | `pl_settlements` | computed settlements, the full report JSON, and the rate stamps used |
 | `pl_audit_events` | append-only; updates and deletes refused at the model level |
+| `pl_ksef_*` | KSeF 2.0: credentials (encrypted token), auth sessions, submissions (UNIQUE `active_key`), immutable FA(3)/UPO documents, append-only status events, page-atomic sync cursors and runs, classified errors, confirmed buyer identifiers — see `docs/KSEF_IMPLEMENTATION.md` |
 
 Everything the module owns is prefixed `pl_`, so upstream tables and ours can
 never collide and an upgrade never has to reconcile them.

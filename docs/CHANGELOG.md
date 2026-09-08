@@ -1,5 +1,67 @@
 # Changelog
 
+## 2026-09-08 — KSeF 2.0 / FA(3) integration (built, unit-tested, not live)
+
+The official KSeF 2.0 machine-to-machine API, version 2.7.1, pinned from the
+Ministry's repository with checksums (`modules/poland/resources/ksef/`), and
+the FA(3) 1-0E invoice schema. Nothing scrapes or embeds the taxpayer web
+application. Documentation: `docs/KSEF.md`, `docs/KSEF_IMPLEMENTATION.md`,
+`docs/KSEF_PRODUCTION_GATE.md`.
+
+### Decisions
+- **Scope widened from InvoiceRead to InvoiceRead + InvoiceWrite** — the
+  application now issues invoices, by explicit specification. Recorded on
+  `KsefScope`; credential-management scopes stay refused by name.
+- Five transport modes: DISABLED · FAKE · TEST · DEMO · PRODUCTION.
+  Production + fake refuses at boot; production + disabled is the shipped
+  default; the production base URL cannot be overridden by environment.
+- Sending is a two-step human action (approve, send). Nothing sends itself.
+- A send with an unknown outcome (timeout, 5xx) asks KSeF's session invoice
+  list for the document hash; found → adopted, not found → MANUAL_REVIEW.
+  Never a second send.
+- Incoming sync: PermanentStorage dates, ascending, window pinned to the
+  server's HWM, page + cursor persisted in one transaction, cursor advanced
+  only after the page landed.
+
+### Schema (migration `2026_09_08_000100_create_poland_ksef_integration_tables`)
+- `pl_ksef_credentials` gains: token fingerprint/reference, declared and
+  observed permissions, seller address and contact, invoice defaults
+  (exemption basis, payment form, bank account), `system_info`,
+  `api_version`, `setup_step`, last test/auth/sync facts, production
+  enablement record.
+- New: `pl_ksef_auth_sessions` (encrypted token pairs), `pl_ksef_invoice_documents`
+  (immutable FA(3)/UPO XML with hashes), `pl_ksef_submissions` (UNIQUE
+  `active_key`, `invoice_reference`, `ksef_number`), `pl_ksef_status_events`
+  (append-only), `pl_ksef_sync_cursors`, `pl_ksef_sync_runs`, `pl_ksef_errors`,
+  `pl_ksef_customer_identifiers`.
+- `pl_ksef_documents`: `original_xml` and `xml_checksum` become nullable
+  (a listed invoice whose body could not be fetched is a stated fact, not an
+  empty string); adds subject type, run, hash, KSeF dates, form code,
+  `xml_missing_reason`.
+- `pl_ksef_sync_state` is no longer written (kept; nothing destroyed).
+
+Deploy: backup → `php artisan migrate --force` → restart queue/scheduler →
+`php artisan poland:ksef-health` must print NOT CONNECTED (transport
+disabled) and `route:list | grep poland.ksef.status` must succeed.
+
+### Added
+- `modules/poland/src/Ksef/{Secret,KsefNumber,KsefEndpoints,KsefRetryPolicy}.php`,
+  `Error/`, `Http/`, `Transport/` (real, fake, disabled + DTOs), `Crypto/`
+  (pure-PHP RSA-OAEP-SHA256, AES-256-CBC), `Auth/`, `Fa3/` (model,
+  generator, XSD validator, semantic checks, ERP mapper), `Outgoing/`,
+  `Incoming/`, `Upo/`, `Health/`, `Audit/`.
+- Laravel: models, services under `Laravel/Support/Ksef/`, `KsefController`
+  and `/poland/ksef/*` routes, four artisan commands, scheduler wiring
+  (poll every 5 min when enabled; sync opt-in), Filament page via
+  `overlay/` and render hooks on Sales Orders and the invoice editor.
+- 20 test classes under `tests/Unit/Ksef` (446 tests, 1967 assertions in
+  the suite). Fixtures: the Ministry's sample FA(3) and UPO documents.
+- `.env.example`, installer and deploy defaults for the five modes.
+
+### Not done
+Live TEST/DEMO contact, the Laravel layer executed, backup drill with the new
+tables — all listed in `docs/OPEN_ITEMS.md` and the production gate.
+
 ## 2026-09-07 (seventh) — Shop Profit Intelligence, the analysis core
 
 A **second, separate application** in `shop-intelligence/`: a management

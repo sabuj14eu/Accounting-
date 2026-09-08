@@ -104,6 +104,13 @@ say "composer install (to potrwa — foundation ma ~670 pakietow)"
 say "Skracam za dlugie nazwy indeksow (limit 64 znakow w MySQL/MariaDB)"
 "$REPO_ROOT/bin/patch-foundation-index-names.sh" "$TARGET"
 
+# The Poland module's Filament page must live where the panels scan. The
+# overlay holds one-line subclasses; the class itself stays in the module.
+if [ -d "$REPO_ROOT/overlay/app" ]; then
+    say "Kopiuję nakładkę overlay/ (strona KSeF w panelu Filament)"
+    cp -R "$REPO_ROOT/overlay/app/." "$TARGET/app/"
+fi
+
 say "package:discover"
 ( cd "$TARGET" && php artisan package:discover --ansi )
 
