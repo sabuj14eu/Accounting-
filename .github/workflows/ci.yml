@@ -16,6 +16,35 @@ jobs:
       # push rather than reviewed once and trusted afterwards.
       - run: bin/check-isolation.sh
 
+  shop-intelligence:
+    name: Shop Intelligence (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring
+          coverage: none
+      # The second application. Its own tests, its own isolation guard, and
+      # neither may touch the accounting module or the trading system.
+      - name: Isolation guard (10 checks, 0 violations required)
+        working-directory: shop-intelligence
+        run: ./bin/check-shop-isolation.sh
+      - name: Install PHPUnit
+        working-directory: shop-intelligence
+        run: composer install --no-interaction --prefer-dist
+      - name: Test
+        working-directory: shop-intelligence
+        run: vendor/bin/phpunit -c phpunit.xml
+      - name: The analysis core runs without a framework or a database
+        working-directory: shop-intelligence
+        run: php bin/shop-demo | grep -q 'MANAGEMENT ANALYSIS'
+
   tests:
     name: Poland tax engine (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest

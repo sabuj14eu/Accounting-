@@ -51,13 +51,15 @@ and trusting it afterwards: it is broken by **adding** something, in any file,
 at any time. So it is checked mechanically, in two places, and both run in CI:
 
 ```bash
-./bin/check-shop-isolation.sh   # 10 checks over src, tests, bin, config
+./bin/check-shop-isolation.sh   # 10 checks over src, tests, bin, config, deploy
 ../modules/poland/vendor/bin/phpunit -c phpunit.xml --filter IsolationTest
 ```
 
 `bin/check-shop-isolation.sh` checks, in order:
 
-1. no accounting database or `pl_` table name anywhere;
+1. no accounting database or `pl_` table name anywhere (scanning `src`,
+   `tests`, `bin`, `config` and `deploy` — the deployment files are where a
+   shared socket or cookie domain would first appear);
 2. no import of the `Poland\` tax engine;
 3. no KSeF token, client or environment variable;
 4. no filing path — no JPK, no e-Deklaracje, no ministry endpoint;
@@ -79,13 +81,19 @@ guard somebody switches off within a week.
 ISOLATION PROVEN — 10 checks, 0 violations.
 ```
 
-Measured on 2026-09-07, PHP 8.4.19, commit recorded in the release notes.
+Measured on 2026-09-07 and again on 2026-09-08 (PHP 8.4.19), after the
+deployment files were added and the scan widened to cover them. Until
+2026-09-08 the claim above that both checks "run in CI" was false — `ci.yml` had
+no Shop Intelligence job. It has one now: guard, suite on PHP 8.2/8.4/8.5, demo.
 
 ## What is still deployment work
 
 The isolation *of the code* is proven. The isolation *of the deployment* — a
 separate database created with a separate user and separate grants, a separate
 systemd unit, a separate nginx vhost, a separate storage root and a separate
-backup — is written down in `.env.example` and not yet executed on the server.
-That is the first item in the Fable briefing, and until it is done this section
-describes an intention rather than a fact.
+backup — is written down in `.env.example`, scripted in `bin/prepare-server.sh`
+with the vhost in `deploy/nginx/`, and **not yet executed on the server**. The
+script creates the isolated infrastructure and one static page that says the
+application is not deployed; it proves after creating the database user that
+the user sees no other schema. Until it has been run, this section describes an
+intention rather than a fact. DNS and the commands: `docs/DNS_AND_SERVER.md`.

@@ -25,6 +25,13 @@ final class PlatformSettlement implements \JsonSerializable
     public const REQUIRES_REVIEW = 'REQUIRES_REVIEW';
     public const NO_PAYOUT_RECORDED = 'NO_PAYOUT_RECORDED';
 
+    /**
+     * Above this share of the expected payout a gap is REQUIRES_REVIEW rather
+     * than UNRECONCILED. UNVALIDATED DEFAULT: it did not come from this shop's
+     * statements. Set it from real history and pass it in; do not tune it here.
+     */
+    public const DEFAULT_REVIEW_THRESHOLD_PERCENT = 1.0;
+
     public readonly Money $tolerance;
 
     public function __construct(
@@ -35,11 +42,16 @@ final class PlatformSettlement implements \JsonSerializable
         public readonly Money $otherFees,
         public readonly ?Figure $bankReceipt = null,
         ?Money $tolerance = null,
+        public readonly float $reviewThresholdPercent = self::DEFAULT_REVIEW_THRESHOLD_PERCENT,
     ) {
         $tolerance ??= Money::zero();
 
         if ($tolerance->isNegative()) {
             throw new \InvalidArgumentException('Tolerance cannot be negative.');
+        }
+
+        if ($reviewThresholdPercent < 0) {
+            throw new \InvalidArgumentException('The review threshold cannot be negative.');
         }
 
         if ($grossOrders->isNegative() || $commission->isNegative() || $otherFees->isNegative()) {
@@ -79,11 +91,14 @@ final class PlatformSettlement implements \JsonSerializable
             return self::RECONCILED;
         }
 
-        // A gap under one percent reads as fees or rounding; above that it is
-        // worth a person's time. Neither reading is an accusation.
+        // A small gap reads as fees or rounding; a larger one is worth a
+        // person's time. Neither reading is an accusation, and neither is
+        // RECONCILED: a gap outside tolerance stays visible whatever its size.
         $share = $difference->shareOf($this->expectedPayout()->absolute());
 
-        return ($share !== null && $share <= 1.0) ? self::UNRECONCILED : self::REQUIRES_REVIEW;
+        return ($share !== null && $share <= $this->reviewThresholdPercent)
+            ? self::UNRECONCILED
+            : self::REQUIRES_REVIEW;
     }
 
     public function effectiveCommissionRate(): ?float
@@ -150,6 +165,8 @@ final class PlatformSettlement implements \JsonSerializable
             'bank_receipt' => $this->bankReceipt,
             'difference' => $this->difference()?->grosze,
             'effective_commission_rate' => $this->effectiveCommissionRate(),
+            'tolerance' => $this->tolerance->grosze,
+            'review_threshold_percent' => $this->reviewThresholdPercent,
             'status' => $this->status(),
             'review_flags' => $this->reviewFlags(),
         ];

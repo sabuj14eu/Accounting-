@@ -38,6 +38,12 @@ final class TextReportRenderer
             $out[] = '  '.$this->pad($label, 17).': '.$description;
         }
         $out[] = 'Management profit  : '.$statement->managementProfit()->describe();
+        $out[] = '';
+        // Two results, side by side, both labelled — never one with a footnote.
+        $out[] = 'CONFIRMED result   : '.$statement->confirmedResult()->describe();
+        $out[] = 'PROJECTED result   : '.$statement->projectedResult()->describe();
+        $out[] = '  (confirmed = ACTUAL evidence only; projected adds EXPECTED, ESTIMATED and USER DECLARED; '
+            .'difference '.$statement->unconfirmedPortion()->format().')';
         $margin = $statement->marginPercent();
         $out[] = 'Margin             : '.($margin === null ? 'NOT CALCULABLE (no revenue recorded)'
             : sprintf('%.2f%%', $margin));

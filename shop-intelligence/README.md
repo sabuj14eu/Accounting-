@@ -30,8 +30,12 @@ Laravel. It runs from a plain PHP file:
 ```bash
 php bin/shop-demo                 # a complete worked month, rendered as text
 ./bin/check-shop-isolation.sh     # the §28 isolation audit, 10 checks
-../modules/poland/vendor/bin/phpunit -c phpunit.xml
+composer install && vendor/bin/phpunit -c phpunit.xml   # or ../modules/poland/vendor/bin/phpunit
 ```
+
+Measured 2026-09-08: 72 tests, 545 assertions, 0 failures. **No UI, no
+database, no login, no importers, no month close, not deployed** — see
+`docs/SPEC_AUDIT_2026-09-08.md` §1 before believing anything else.
 
 ## Reading order
 
@@ -39,7 +43,9 @@ php bin/shop-demo                 # a complete worked month, rendered as text
 |---|---|
 | `docs/BANKING_UX.md` | what "work like a banking app" means here, as a design |
 | `docs/ISOLATION.md` | the §28 audit: what is shared (nothing) and how that is proven |
-| `docs/REGRESSION_MAP.md` | the 27 regression tests and the rule each one pins |
+| `docs/REGRESSION_MAP.md` | the regression tests (R01–R35) and the rule each one pins |
+| `docs/SPEC_AUDIT_2026-09-08.md` | what is actually implemented, measured against the specification: §29 line by line, banking invariants, the certainty classes, the thresholds |
+| `docs/DNS_AND_SERVER.md` | Cloudflare DNS for `shop.signalmesh.dev` and the Contabo commands — infrastructure only, the application is not built |
 | `../docs/FABLE_BRIEFING_2026-09-08.md` | the handover: state, gaps, and what to do next |
 
 ## The one idea underneath everything

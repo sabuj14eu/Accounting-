@@ -3,6 +3,11 @@
 *Paste the block at the bottom of this file into a new window. Everything above
 it is the detail behind it.*
 
+> **Answered 2026-09-08.** The first task in §8 — the §29 reconciliation and
+> the §5 disagreements — is done: `shop-intelligence/docs/SPEC_AUDIT_2026-09-08.md`.
+> The remaining work order (§6) is carried, with what the audit added to it, in
+> `docs/OPEN_ITEMS.md`. This file is kept as the handover it was.
+
 ---
 
 ## 1. What Fable is being handed

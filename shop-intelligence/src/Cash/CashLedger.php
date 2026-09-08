@@ -150,10 +150,12 @@ final class CashLedger implements \JsonSerializable
         return [new ReviewFlag(
             'CASH_DIFFERENCE_REQUIRES_REVIEW',
             'cash, '.$this->period,
+            // The counter's name stays on the record (R26) and OFF this sentence:
+            // "160 zł less ... counted by Anna" is a shortfall with a name beside
+            // it, which is the accusation the specification forbids, made by layout.
             'There is '.$difference->absolute()->format().' '.$direction.' in the drawer than the ledger '
                 .'expects ('.$this->expectedClosing()->format().' expected, '
-                .$this->physicalCount->format().' counted'
-                .($this->countedBy === null ? '' : ' by '.$this->countedBy).').',
+                .$this->physicalCount->format().' counted).',
             [
                 'change given wrongly during a busy service',
                 'a cash sale rung up on the till but not entered here, or entered twice',

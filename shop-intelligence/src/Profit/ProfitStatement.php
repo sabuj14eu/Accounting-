@@ -95,6 +95,50 @@ final class ProfitStatement implements \JsonSerializable
         return $this->managementProfit()->amount;
     }
 
+    /**
+     * The result built ONLY from ACTUAL evidence: bank lines, terminal and
+     * platform statements, fiscal reports, invoices, counted cash.
+     *
+     * Declared revenue, scheduled costs and recipe estimates are left out, so
+     * this is the bank's "available balance": what is known to have happened.
+     * When nothing ACTUAL has been recorded it is NO DATA, not zero.
+     */
+    public function confirmedResult(): Total
+    {
+        $figures = [];
+
+        foreach ($this->revenue as $figure) {
+            if ($figure->certainty() === Certainty::ACTUAL) {
+                $figures[] = $figure;
+            }
+        }
+
+        foreach ($this->costs as $cost) {
+            if ($cost->isActual()) {
+                $figure = $cost->figure();
+                $figures[] = $figure->withAmount($figure->amount->negated());
+            }
+        }
+
+        return Total::of($figures);
+    }
+
+    /**
+     * The result with everything included — the "book balance". Identical to
+     * managementProfit(); named so that a screen showing the pair cannot
+     * mislabel which is which.
+     */
+    public function projectedResult(): Total
+    {
+        return $this->managementProfit();
+    }
+
+    /** What separates the two results: everything that is not yet ACTUAL. */
+    public function unconfirmedPortion(): Money
+    {
+        return $this->projectedResult()->amount->minus($this->confirmedResult()->amount);
+    }
+
     public function marginPercent(): ?float
     {
         return $this->managementProfitAmount()->shareOf($this->revenueTotal()->amount);
@@ -195,6 +239,9 @@ final class ProfitStatement implements \JsonSerializable
             'cost_premises_and_utilities' => $this->costsFor(CostCategory::PREMISES_AND_UTILITIES),
             'cost_other_operating' => $this->costsFor(CostCategory::OTHER_OPERATING),
             'management_profit' => $this->managementProfit(),
+            'confirmed_result' => $this->confirmedResult(),
+            'projected_result' => $this->projectedResult(),
+            'unconfirmed_portion' => $this->unconfirmedPortion()->grosze,
             'margin_percent' => $this->marginPercent(),
             'headline' => $this->headline(),
             'not_tax_profit' => self::NOT_TAX_PROFIT,

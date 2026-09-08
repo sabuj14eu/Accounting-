@@ -12,6 +12,7 @@ use Shop\Comparison\AccountsSnapshot;
 use Shop\Costs\CostCategory;
 use Shop\Costs\CostEntry;
 use Shop\Costs\CostEntryType;
+use Shop\Monitoring\ShopMonitor;
 use Shop\Platforms\PlatformSettlement;
 use Shop\Profit\ChannelResult;
 use Shop\Profit\ProfitStatement;
@@ -185,5 +186,44 @@ final class ReportAndComparisonTest extends TestCase
         $this->assertSame(RevenueChannel::GLOVO, $channels[1]->channel);
         $this->assertSame(70.0, $channels[0]->contributionMarginPercent());
         $this->assertSame(40.0, $channels[1]->contributionMarginPercent());
+    }
+    /**
+     * R34 — thresholds are the caller's decision and travel with the report.
+     * Pins that the monitor is injectable, not any particular value: every
+     * threshold in this application is an UNVALIDATED default until set from
+     * the shop's own history.
+     */
+    public function test_r34_the_report_runs_the_monitor_it_was_given_not_a_default_one(): void
+    {
+        $history = [
+            '2026-05' => Money::parse('80 000,00'),
+            '2026-06' => Money::parse('80 000,00'),
+            '2026-07' => Money::parse('80 000,00'),
+        ];
+
+        // Revenue 73 500 is 8.1% below the median: silent at the default −15%,
+        // loud when the operator has set −5% from their own history.
+        $default = new MonthlyManagementReport($this->statement(), [], [], null, null, null, $history);
+        $strict = new MonthlyManagementReport(
+            $this->statement(), [], [], null, null, null, $history, [], null, '',
+            new ShopMonitor(revenueDropPercent: -5.0),
+        );
+
+        $codes = static fn (MonthlyManagementReport $r) => array_map(static fn ($f) => $f->code, $r->reviewFlags());
+
+        $this->assertNotContains('REVENUE_BELOW_NORMAL', $codes($default));
+        $this->assertContains('REVENUE_BELOW_NORMAL', $codes($strict));
+        $this->assertSame(-5.0, $strict->monitor->revenueDropPercent);
+    }
+
+    public function test_the_rendered_report_shows_confirmed_and_projected_results_side_by_side(): void
+    {
+        $text = (new TextReportRenderer())->render($this->report());
+
+        $this->assertStringContainsString('CONFIRMED result', $text);
+        $this->assertStringContainsString('PROJECTED result', $text);
+        // 60 000 + 12 000 − 22 000 − 14 000 = 36 000 confirmed; 31 500 projected.
+        $this->assertStringContainsString('CONFIRMED result   : 36 000,00 zł [ACTUAL]', $text);
+        $this->assertStringContainsString('PROJECTED result   : 31 500,00 zł', $text);
     }
 }

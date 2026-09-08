@@ -153,34 +153,78 @@ Recorded because they are the argument for the integration job in CI:
 None of these were visible to `php -l`, and none were visible to the engine's
 own test suite.
 
-## Shop Profit Intelligence — not built yet
+## Shop Profit Intelligence — core audited, everything around it not built
 
-The analysis core in `shop-intelligence/` is built and tested (60 tests, 469
-assertions, 0 failures). Everything around it is not, and the list is short
-enough to be honest about:
+Audited 2026-09-08 against the specification:
+`shop-intelligence/docs/SPEC_AUDIT_2026-09-08.md`. Measured: 72 tests, 545
+assertions, 0 failures; isolation 10/10 and 4/4; Shop Intelligence now runs in
+CI. The §29 reconciliation is done (audit §2, `REGRESSION_MAP.md` R28–R35).
+What follows is what the audit found still open, in build order.
 
-1. No user interface — the three pages exist as a design in
-   `shop-intelligence/docs/BANKING_UX.md` and as a text renderer, nothing else.
-2. No database, no migrations, nothing persists.
-3. No authentication, no users, no sessions. `.env.example` describes them.
-4. No importers: bank statement, card terminal, Glovo, Uber Eats, supplier
-   invoices, OCR — all currently a human typing figures into a constructor.
-5. No month close and no immutable snapshot. The rule is written down; there is
-   no table to enforce it in.
-6. Not deployed: no database created, no vhost, no systemd unit, no backup.
-7. **The 27 regression tests were derived from the specification body, not
-   transcribed from its §29 list.** Somebody must read §29 line by line against
-   `shop-intelligence/docs/REGRESSION_MAP.md` and report what is missing.
-   Overlap is not coverage.
+### P0 — before any real data can be entered
+1. **Schema and migrations** under `shop_intelligence`, its own user (the
+   server script creates the database and proves the grant is scoped; no table
+   exists). Unique index on each import's natural fingerprint plus
+   `possible_duplicate_of`.
+2. **Own authentication**, own session cookie `shop_intelligence_session` on
+   `shop.signalmesh.dev`. Nothing implemented; `.env.example` describes it.
+3. **Immutable month close** — build it in the domain first: a `PeriodClose`
+   with figures, certainty labels, flags, code version, timestamp and a
+   `supersededBy` chain, tested without a database; then its table with no
+   UPDATE/DELETE path, the way `pl_audit_events` refuses them. §29 "closed
+   month" has no test because there is nothing to test.
+4. **Correction chains** for what Banking UX §3 promises by name and the code
+   does not have: `CashLedger` (a recount), `StockLine` (a recount),
+   `CostEntry` (a confirmation must point at the EXPECTED entry it supersedes
+   — today `confirmedBy()` returns a fresh object and the caller overwrites the
+   list element), `PlatformSettlement` (a revised statement),
+   `AccountsSnapshot` (a re-import). Pattern: `MatchHistory`.
+5. **Configuration layer** mapping the `.env` keys onto the constructor
+   arguments they mirror. Nothing reads `.env`. Every threshold stays
+   UNVALIDATED and must be displayed as such until set from history with who
+   and when.
 
-Every threshold in it is invented — target margin, stock tolerance, revenue and
-cost alert levels, the payout tolerance, the three-period baseline minimum. None
-came from this shop's data. `shop-intelligence/docs/` and
-`docs/FABLE_BRIEFING_2026-09-08.md` §5 list where I am most likely wrong.
+### P1 — before the three pages
+6. **Quantity certainty.** `Quantity` carries no evidence: 540 kg theoretical
+   and 18 kg counted are the same type. Add `MeasuredQuantity` (quantity +
+   `EvidenceType`) and two evidence cases, `STOCK_COUNTED` (ACTUAL, names its
+   counter, not corroborated — the twin of `CASH_COUNTED`) and
+   `RECIPE_THEORETICAL` (ESTIMATED); `StockLine` accepts only those. Blocks
+   Page 2 (audit §4).
+7. **Two dates on every row** — occurred / recorded-or-cleared. No class has
+   two; `CostEntry` and `PlatformSettlement` have only a period. Blocks Page 1
+   (Banking UX §5).
+8. **`Total::of([])` reports ESTIMATED** in `jsonSerialize()` for NO DATA.
+   Give NO DATA its own state instead of borrowing one of the four badges.
+9. **`CostEntry::confirmedBy()` at a different amount** than scheduled is
+   accepted silently. Flag it (`CONFIRMED_AT_DIFFERENT_AMOUNT`, INFO).
+10. **Stock count names nobody.** `StockLine` has no `countedBy`; `CashLedger`
+    refuses an anonymous count (R26). Same rule, both places.
+11. **Ledger rows for bank and stock.** Only cash has a running-balance
+    statement; Banking UX §1 promises one per page.
+12. **Seasonal baseline** — same-month-last-year shown beside the median, and
+    with under two years of history the verdict CANNOT SEPARATE seasonal from
+    decline. `ShopMonitor` also says "last N periods" for periods that need not
+    be consecutive.
 
-**Owner: whoever picks up the briefing. Proof required: a deployed application
-with its own database and its own login, and the §29 reconciliation written
-down.**
+### P2 — with the importers
+13. **Mandatory source reference at the boundary.** `Figure::$sourceReference`
+    is nullable; `PlatformSettlement` gross/commission/fees and `ChannelResult`
+    carry no reference at all. Every importer must attach one; "no figure
+    without a reference" is stated in Banking UX §6 and enforced nowhere.
+14. **Accusation vocabulary** — grow the list (`zabrał`, `przywłaszczył`,
+    `pobrał`, "walked off with"), knowing the field-level rule (a flag has no
+    person field) is the mechanism and the list is the net.
+
+### Deployment
+15. **`bin/prepare-server.sh` has not been run.** DNS and commands in
+    `shop-intelligence/docs/DNS_AND_SERVER.md`. Until it runs, the isolation of
+    the deployment is an intention. When it has run, the proof is the SHOW
+    DATABASES output for the `shop_intelligence` user and the page at
+    `https://shop.signalmesh.dev` saying "nie wdrożono".
+
+**Owner: whoever picks up the briefing. Proof required for closing any item:
+the test or the command output named against it, recorded in the audit file.**
 
 ## Deliberately not done
 

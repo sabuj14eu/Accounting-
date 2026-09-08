@@ -181,4 +181,110 @@ final class PaymentReconciliationTest extends TestCase
         $this->assertSame(PlatformSettlement::RECONCILED, $settlement->status());
         $this->assertSame([], $settlement->reviewFlags());
     }
+    /**
+     * R28 — §29 "partial payment": a document paid in part is PARTIALLY
+     * ALLOCATED with the balance still outstanding. It is not settled, and it
+     * is not unpaid; it is exactly as paid as the evidence says.
+     */
+    public function test_r28_a_partial_payment_leaves_the_balance_outstanding(): void
+    {
+        $invoice = (new AllocationSet('FV/2026/08/116', Money::parse('5 000,00'), 'Piekarnia'))
+            ->allocate(new Figure(
+                Money::parse('3 000,00'),
+                EvidenceType::BANK_CONFIRMED,
+                'Bank transfer 14.08',
+                'ING/2026-08-14/00232',
+            ));
+
+        $this->assertSame(AllocationState::PARTIALLY_ALLOCATED, $invoice->state());
+        $this->assertTrue($invoice->state()->needsAttention());
+        $this->assertSame(200000, $invoice->outstanding()->grosze);
+        $this->assertTrue($invoice->overAllocated()->isZero());
+        $this->assertStringStartsWith('PARTIALLY ALLOCATED', $invoice->settlementDescription());
+
+        // A partial payment is not a finding: nothing is wrong, something is open.
+        $this->assertSame([], $invoice->reviewFlags());
+    }
+
+    /** R29 — §29 "partial payment", the other edge: nothing recorded is UNALLOCATED, not paid. */
+    public function test_r29_a_document_with_nothing_against_it_is_unallocated(): void
+    {
+        $invoice = new AllocationSet('FV/2026/08/117', Money::parse('900,00'));
+
+        $this->assertSame(AllocationState::UNALLOCATED, $invoice->state());
+        $this->assertSame(90000, $invoice->outstanding()->grosze);
+        $this->assertStringContainsString('nothing recorded', $invoice->settlementDescription());
+    }
+
+    /**
+     * R30 — §29 "immutability": a posted match revision cannot be edited and
+     * a history cannot be shortened. Asserted as an ABSENCE, the way the
+     * price review and the accounts comparison already are, because the
+     * guarantee is that no such method exists — not that nobody calls it.
+     */
+    public function test_r30_a_posted_revision_is_immutable_and_history_cannot_shrink(): void
+    {
+        $match = (new MatchHistory('ING/2026-08-14/00231', Money::parse('3 000,00')))
+            ->open('FV/2026/08/114', Money::parse('3 000,00'), 0.75, 'amount matches', 'system', '2026-08-15T02:10:00');
+
+        foreach ([MatchHistory::class, AllocationSet::class] as $class) {
+            foreach (get_class_methods($class) as $method) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/^(delete|remove|reset|clear|truncate|set[A-Z]|edit|overwrite|replace)/',
+                    $method,
+                    "{$class}::{$method}() could rewrite posted history.",
+                );
+            }
+        }
+
+        $revision = $match->current();
+        foreach ((new \ReflectionClass($revision))->getProperties() as $property) {
+            $this->assertTrue($property->isReadOnly(), "MatchRevision::\${$property->getName()} is writable.");
+        }
+
+        $this->expectException(\Error::class);
+        $revision->documentReference = 'FV/2026/08/999';
+    }
+
+    /**
+     * R31 — §29 "platform reconciliation": a gap outside tolerance is never
+     * RECONCILED, however small. Pins the invariant, not the threshold: the
+     * review threshold is an UNVALIDATED default and must stay a parameter.
+     */
+    public function test_r31_a_payout_gap_outside_tolerance_is_never_reconciled_whatever_its_size(): void
+    {
+        $tiny = new PlatformSettlement(
+            'Glovo',
+            '2026-08',
+            Money::parse('12 000,00'),
+            Money::parse('3 600,00'),
+            Money::parse('120,00'),
+            new Figure(Money::parse('8 275,00'), EvidenceType::BANK_CONFIRMED, 'Glovo payout'),
+        );
+
+        // 5 zł on 8 280 zł: below the review threshold, still not reconciled.
+        $this->assertSame(PlatformSettlement::UNRECONCILED, $tiny->status());
+        $this->assertNotSame(PlatformSettlement::RECONCILED, $tiny->status());
+        $this->assertSame('PLATFORM_PAYOUT_MISMATCH', $tiny->reviewFlags()[0]->code);
+        $this->assertSame(Money::parse('5,00')->grosze, $tiny->reviewFlags()[0]->financialImpact->grosze);
+
+        // The threshold is a parameter of the record, visible in its output.
+        $this->assertSame(
+            PlatformSettlement::DEFAULT_REVIEW_THRESHOLD_PERCENT,
+            $tiny->jsonSerialize()['review_threshold_percent'],
+        );
+
+        $strict = new PlatformSettlement(
+            'Glovo',
+            '2026-08',
+            Money::parse('12 000,00'),
+            Money::parse('3 600,00'),
+            Money::parse('120,00'),
+            new Figure(Money::parse('8 275,00'), EvidenceType::BANK_CONFIRMED, 'Glovo payout'),
+            null,
+            0.0,
+        );
+
+        $this->assertSame(PlatformSettlement::REQUIRES_REVIEW, $strict->status());
+    }
 }

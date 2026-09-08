@@ -12,6 +12,9 @@
 #   no accounting-session reuse · no shared credentials · no government filing
 #   no write-back to Accounts · no trading DB access · no MT5 access
 #   no trading credentials · no SignalMesh trading execution access
+#
+# Scans src, tests, bin, config and deploy — the deployment files are where a
+# shared socket, a shared database or a shared cookie domain would be added.
 
 set -uo pipefail
 
@@ -37,7 +40,7 @@ EXCLUDES=(
 )
 
 # Strip whole-line comments before judging a hit.
-scan() { grep -rEIn "${EXCLUDES[@]}" -- "$1" src tests bin config 2>/dev/null \
+scan() { grep -rEIn "${EXCLUDES[@]}" -- "$1" src tests bin config deploy 2>/dev/null \
           | grep -Ev ':[0-9]+:[[:space:]]*(#|//|\*|/\*)' ; }
 
 step 'No connection to the accounting database'

@@ -163,4 +163,39 @@ final class InventoryTest extends TestCase
         $this->assertSame(Money::parse('3 000,00')->grosze, $reconciliation->foodCostGap()->grosze);
         $this->assertSame('FOOD_COST_ABOVE_RECIPE', $reconciliation->reviewFlags()[0]->code);
     }
+    /**
+     * R33 — "never silently overwrite history" applies to recipes too. A recipe
+     * is the model every stock difference is measured against; replacing it
+     * quietly rewrites last month's verdicts.
+     */
+    public function test_r33_a_recipe_is_never_silently_overwritten(): void
+    {
+        $book = $this->recipeBook();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/overwritten/');
+
+        $book->add(new Recipe('KEBAB_L', 'Kebab duży', ['MEAT' => Quantity::of(200, Quantity::GRAM)]));
+    }
+
+    public function test_r33_a_recipe_revision_keeps_the_version_it_supersedes(): void
+    {
+        $book = (new RecipeBook())
+            ->add(new Recipe('KEBAB_L', 'Kebab duży', ['MEAT' => Quantity::of(180, Quantity::GRAM)], 'v1'))
+            ->revise(new Recipe('KEBAB_L', 'Kebab duży', ['MEAT' => Quantity::of(200, Quantity::GRAM)], 'v2'));
+
+        $this->assertSame('v2', $book->get('KEBAB_L')->version);
+        $this->assertCount(1, $book->history('KEBAB_L'));
+        $this->assertSame('v1', $book->history('KEBAB_L')[0]->version);
+        $this->assertSame(180_000, $book->history('KEBAB_L')[0]->components['MEAT']->thousandths);
+    }
+
+    public function test_r33_a_recipe_revision_without_a_version_is_refused(): void
+    {
+        $book = (new RecipeBook())
+            ->add(new Recipe('KEBAB_L', 'Kebab duży', ['MEAT' => Quantity::of(180, Quantity::GRAM)], 'v1'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $book->revise(new Recipe('KEBAB_L', 'Kebab duży', ['MEAT' => Quantity::of(200, Quantity::GRAM)]));
+    }
 }

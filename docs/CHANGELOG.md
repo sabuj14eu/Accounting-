@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-09-08 (eighth) — Shop Intelligence: the specification audit
+
+`shop-intelligence/docs/SPEC_AUDIT_2026-09-08.md`. What is actually implemented,
+measured against the specification: §4 confirmed by looking at the tree (no UI,
+database, migrations, auth, importers, month close, deployment), §29 read line
+by line against `REGRESSION_MAP.md`, the banking invariants, the seven
+certainty classes, every threshold, and where §5 of the briefing was wrong.
+
+### Found
+- **Overlap was being read as coverage.** Of the eight §29 requirements, three
+  were fully proven, two partially, two had no test (partial payment,
+  immutability), one is not implemented (closed month).
+- **Theoretical quantities carry no certainty.** `Quantity` has no evidence
+  type, so 540 kg theoretical and 18 kg counted are the same type. The money
+  side enforces the distinction; the stock side does not.
+- **One result with a footnote**, where Banking UX §2 promises two figures.
+- `RecipeBook::add()` silently overwrote a recipe. The report built its own
+  monitor and ignored configured thresholds. The platform review threshold and
+  the food-cost alert were hard-coded; the latter and the accounts-comparison
+  tolerance were undisclosed. `.env.example` disagreed with the code (60/50 vs
+  65/55) and nothing reads it.
+- The cash-shortfall flag printed the counter's name beside the difference.
+- `ISOLATION.md` said the guard runs in CI. It did not.
+- No row carries two dates. `Figure::$sourceReference` is optional.
+
+### Changed (each with a test, R28–R35; 72 tests, 545 assertions, 0 failures)
+- `ProfitStatement::confirmedResult()` / `projectedResult()` /
+  `unconfirmedPortion()`; the text renderer prints both, labelled.
+- `RecipeBook::add()` refuses a duplicate; `revise()` keeps the superseded
+  version and requires a version.
+- `MonthlyManagementReport` takes the `ShopMonitor` it runs.
+- `PlatformSettlement` takes `reviewThresholdPercent`, default named and marked
+  UNVALIDATED.
+- `CashLedger` keeps the counter on the record and off the shortfall sentence.
+- `.env.example` mirrors every constructor default and says nothing reads it.
+- `bin/check-shop-isolation.sh` also scans `deploy/`.
+- CI: Shop Intelligence job (guard, suite on 8.2/8.4/8.5, demo).
+
+### Added — infrastructure, not an application
+- `shop-intelligence/deploy/nginx/shop.signalmesh.dev.conf`,
+  `shop-intelligence/bin/prepare-server.sh` (own user, database with a proven
+  scoped grant, storage root, FPM pool, vhost, certificate, one static page
+  that says the application is not deployed), `docs/DNS_AND_SERVER.md`.
+  **Not run on the server.**
+
+### Still not built
+Everything in `docs/OPEN_ITEMS.md` under Shop Profit Intelligence: storage,
+login, month close, correction chains, configuration, quantity certainty, two
+dates, importers. The real-data pilot REQUIRES HUMAN.
+
 ## 2026-09-07 (seventh) — Shop Profit Intelligence, the analysis core
 
 A **second, separate application** in `shop-intelligence/`: a management

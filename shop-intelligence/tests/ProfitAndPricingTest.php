@@ -242,4 +242,72 @@ final class ProfitAndPricingTest extends TestCase
         $codes = array_map(static fn ($f) => $f->code, $loud);
         $this->assertContains('REVENUE_BELOW_NORMAL', $codes);
     }
+    /**
+     * R32 — Banking UX §2: two results, side by side. The CONFIRMED result is
+     * built from ACTUAL evidence only; the PROJECTED result adds EXPECTED,
+     * ESTIMATED and USER DECLARED. Neither is ever shown alone as "profit".
+     */
+    public function test_r32_confirmed_and_projected_results_are_two_figures_not_one(): void
+    {
+        $statement = new ProfitStatement(
+            '2026-08',
+            [
+                new Figure(Money::parse('60 000,00'), EvidenceType::FISCAL_REPORT, 'Kasa fiskalna'),
+                new Figure(Money::parse('1 500,00'), EvidenceType::USER_DECLARED, 'Sprzedaż poza kasą'),
+            ],
+            [
+                CostEntry::record('FV/1', CostCategory::FOOD_AND_MATERIALS, 'Mięso', Money::parse('20 000,00'), CostEntryType::INVOICE, '2026-08'),
+                $this->rent(),
+                CostEntry::record('EST/1', CostCategory::FOOD_AND_MATERIALS, 'Opakowania', Money::parse('900,00'), CostEntryType::ESTIMATE, '2026-08'),
+            ],
+        );
+
+        // Confirmed: 60 000 − 20 000 = 40 000, all ACTUAL, nothing mixed.
+        $confirmed = $statement->confirmedResult();
+        $this->assertSame(Money::parse('40 000,00')->grosze, $confirmed->amount->grosze);
+        $this->assertSame(Certainty::ACTUAL, $confirmed->certainty);
+        $this->assertFalse($confirmed->isMixed());
+
+        // Projected: + 1 500 declared − 6 000 expected − 900 estimated = 34 600.
+        $projected = $statement->projectedResult();
+        $this->assertSame(Money::parse('34 600,00')->grosze, $projected->amount->grosze);
+        $this->assertTrue($projected->isMixed());
+        $this->assertSame(Money::parse('-5 400,00')->grosze, $statement->unconfirmedPortion()->grosze);
+
+        $json = $statement->jsonSerialize();
+        $this->assertArrayHasKey('confirmed_result', $json);
+        $this->assertArrayHasKey('projected_result', $json);
+    }
+
+    /** R32b — with nothing ACTUAL recorded the confirmed result is NO DATA, not a zero profit. */
+    public function test_r32_a_confirmed_result_with_no_actual_evidence_is_no_data(): void
+    {
+        $statement = new ProfitStatement(
+            '2026-08',
+            [new Figure(Money::parse('1 500,00'), EvidenceType::USER_DECLARED, 'Sprzedaż poza kasą')],
+            [$this->rent()],
+        );
+
+        $this->assertStringContainsString('NO DATA', $statement->confirmedResult()->describe());
+        $this->assertNotSame(Certainty::ACTUAL, $statement->confirmedResult()->certainty);
+    }
+    /**
+     * R35 — "never name anyone" also means by layout. The person who counted
+     * is on the record and must be; they must not appear in the sentence that
+     * reports the shortfall.
+     */
+    public function test_r35_a_cash_shortfall_never_puts_a_name_next_to_the_difference(): void
+    {
+        $ledger = (new CashLedger('2026-08', Money::parse('500,00'), Money::parse('1 100,00'), 'Anna'))
+            ->record(new CashMovement('2026-08-01', 'Utarg gotówkowy', Money::parse('900,00'), EvidenceType::FISCAL_REPORT));
+
+        $this->assertSame('Anna', $ledger->countedBy);
+
+        foreach ($ledger->reviewFlags() as $flag) {
+            $this->assertStringNotContainsString('Anna', $flag->explanation);
+            foreach ($flag->possibleExplanations as $explanation) {
+                $this->assertStringNotContainsString('Anna', $explanation);
+            }
+        }
+    }
 }

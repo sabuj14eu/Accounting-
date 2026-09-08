@@ -47,8 +47,15 @@ final class MonthlyManagementReport implements \JsonSerializable
         public readonly array $costHistory = [],
         public readonly ?float $previousMarginPercent = null,
         public readonly string $generatedAt = '',
+        ?ShopMonitor $monitor = null,
     ) {
+        // The thresholds the monitor runs with are the caller's decision and
+        // travel with the report. A report that silently built its own monitor
+        // would ignore every configured threshold.
+        $this->monitor = $monitor ?? new ShopMonitor();
     }
+
+    public readonly ShopMonitor $monitor;
 
     public function period(): string
     {
@@ -58,7 +65,7 @@ final class MonthlyManagementReport implements \JsonSerializable
     /** @return list<ReviewFlag> */
     public function reviewFlags(): array
     {
-        $flags = (new ShopMonitor())->run(
+        $flags = $this->monitor->run(
             $this->statement,
             $this->revenueHistory,
             $this->costHistory,

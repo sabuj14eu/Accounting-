@@ -4,11 +4,14 @@
 each one pinning a rule that the specification states in prose, mapped to the
 test that would fail if somebody removed it.
 
-**A caveat Fable should settle first.** These 27 were derived from the rules in
-the specification body — §3 through §28 — rather than transcribed from the §29
-list itself. Before signing them off, read §29 line by line against this table
-and tell me which of its items are missing. A test I invented that happens to
-overlap is not the same thing as the test that was asked for.
+**The §29 reconciliation was done on 2026-09-08** and is written up in
+`SPEC_AUDIT_2026-09-08.md` §2, one row per §29 requirement with "test exists?"
+and "test actually proves it?" answered separately. Overlap is not coverage:
+three of the eight §29 requirements were fully proven by the original 27, two
+partially, two had no test at all (partial payment, immutability) and one is not
+implemented (closed month). R28–R35 below close what could be closed in the
+core; the storage, the correction chains and the month close remain
+NOT IMPLEMENTED and no test here pretends otherwise.
 
 Run them:
 
@@ -48,6 +51,22 @@ php bin/shop-demo
 | R25 | §18 — a cash difference is a question, never an accusation | `test_r25_a_cash_difference_requires_review_without_naming_a_cause` |
 | R26 | A cash count must name who counted it | `test_r26_a_cash_count_must_name_who_counted_it` |
 | R27 | §22 — every forbidden AI action throws, all eleven | `test_r27_every_forbidden_ai_action_throws` |
+| R28 | §29 partial payment — PARTIALLY ALLOCATED with the balance outstanding, no flag | `test_r28_a_partial_payment_leaves_the_balance_outstanding` |
+| R29 | §29 partial payment — nothing recorded is UNALLOCATED, not paid | `test_r29_a_document_with_nothing_against_it_is_unallocated` |
+| R30 | §29 immutability — a posted revision is readonly; history has no delete, remove, reset or setter (asserted as an absence) | `test_r30_a_posted_revision_is_immutable_and_history_cannot_shrink` |
+| R31 | §29 platform reconciliation — a gap outside tolerance is never RECONCILED whatever its size; the review threshold is a parameter, not a rule | `test_r31_a_payout_gap_outside_tolerance_is_never_reconciled_whatever_its_size` |
+| R32 | Banking UX §2 — CONFIRMED (ACTUAL only) and PROJECTED results are two figures; with nothing ACTUAL the confirmed result is NO DATA | `test_r32_confirmed_and_projected_results_are_two_figures_not_one`, `test_r32_a_confirmed_result_with_no_actual_evidence_is_no_data` |
+| R33 | Never silently overwrite — a recipe cannot be re-added; a revision keeps the version it supersedes and must carry a version | `test_r33_a_recipe_is_never_silently_overwritten`, `test_r33_a_recipe_revision_keeps_the_version_it_supersedes`, `test_r33_a_recipe_revision_without_a_version_is_refused` |
+| R34 | Thresholds are the caller's decision — the report runs the monitor it was given (pins injectability, never a value) | `test_r34_the_report_runs_the_monitor_it_was_given_not_a_default_one` |
+| R35 | Never name anyone, by layout either — the counter is on the record and off the shortfall sentence | `test_r35_a_cash_shortfall_never_puts_a_name_next_to_the_difference` |
+
+## §29 requirements that still have no test, because there is nothing to test
+
+| §29 requirement | Why | Where the work is |
+|---|---|---|
+| Closed month | no month-close type, no snapshot, no version chain | `../docs/OPEN_ITEMS.md`, P0 |
+| Immutability in storage | no storage | same |
+| Corrections to a cash count, a stock count, a cost entry, a platform statement, a snapshot | no `correct()` on any of them | same |
 
 ## Unnumbered tests that matter as much
 
@@ -63,6 +82,8 @@ php bin/shop-demo
   not a trend.
 - `test_the_cash_ledger_shows_a_running_balance_after_every_movement` — the
   banking-app shape, tested.
+- `test_the_rendered_report_shows_confirmed_and_projected_results_side_by_side`
+  — the two-figure rule holding at the last moment before a human reads it.
 
 ## Why R27 is written as a loop
 
