@@ -12,11 +12,11 @@
 > bash /root/shop-prep/bin/deploy-contabo.sh
 > ```
 >
-> The installer asks once for a GitHub token with **no permissions**
-> (fine-grained, "Public repositories" only): the upstream ERP resolves 48
-> GitHub repositories and downloads 246 packages through the GitHub API,
-> whose anonymous limit is 60 requests per hour. The token is stored in
-> Composer's `auth.json` for the `accounting` user and nowhere else.
+> The installer needs **no GitHub token**: it drops the upstream ERP's 48
+> GitHub repository entries (every package from them is pinned in the lock)
+> and rewrites the 246 package download URLs from `api.github.com`, whose
+> anonymous limit is 60 requests per hour, to `codeload.github.com`, which
+> has no such limit. Nothing prompts during the install.
 >
 > The installer now also builds the foundation's Vite assets (Node 22 from
 > NodeSource), because upstream commits the manifest but not the 24 files it

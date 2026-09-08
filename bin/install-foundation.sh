@@ -101,6 +101,34 @@ file_put_contents(
 );
 ' "$TARGET/composer.json"
 
+# --- Downloads without the GitHub API ---------------------------------------
+# Every non-local package in upstream's lock file (246 of 673) has a download
+# URL on api.github.com, and anonymous access to that API is limited to 60
+# requests per hour: an install from a fresh server stalls after the first
+# sixty and asks for a token. The very same archives are served by GitHub's
+# plain download host, codeload.github.com, which has no such limit and needs
+# no credentials. The lock file is rewritten to point there. Content-hash is
+# unaffected (it covers composer.json only); every package, version and
+# commit reference stays exactly as upstream pinned it.
+say "Przekierowuję pobieranie pakietów z api.github.com na codeload.github.com (bez limitu, bez tokena)"
+php -r '
+$path = $argv[1];
+$lock = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+$rewritten = 0;
+foreach (["packages", "packages-dev"] as $section) {
+    foreach ($lock[$section] ?? [] as &$package) {
+        $url = $package["dist"]["url"] ?? "";
+        if (preg_match("#^https://api\\.github\\.com/repos/([^/]+)/([^/]+)/zipball/([0-9a-f]+)$#", $url, $m)) {
+            $package["dist"]["url"] = "https://codeload.github.com/{$m[1]}/{$m[2]}/legacy.zip/{$m[3]}";
+            $rewritten++;
+        }
+    }
+    unset($package);
+}
+file_put_contents($path, json_encode($lock, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+echo "    przepisano {$rewritten} adresów\n";
+' "$TARGET/composer.lock"
+
 # --- Install ----------------------------------------------------------------
 # The module was added to composer.json above, and upstream's composer.lock
 # does not know it. `composer install` refuses that ("Required package ... is
