@@ -239,10 +239,14 @@ which is correct, and the access log already shows internet scanners probing
 for debug panels. Nothing to fix; a reason not to put an unfinished
 application behind this name.
 
-Still open on the accounting side, found while doing this:
-**`account.signalmesh.dev` has no DNS record and the box has never run the
-accounting installer.** The accounting "live application" in
-`docs/DEPLOYMENT.md` is not running on this server.
+Still open on the accounting side, found while doing this: the box had never
+run the accounting installer. The DNS record for `account.signalmesh.dev` was
+added on 2026-09-08 (62.171.164.19, DNS only); `bin/deploy-contabo.sh` was
+then fixed for a real box (private-repo local clone as root, root mode 755,
+Node 22 + Vite build because upstream commits the manifest without its
+assets) and is waiting to be run. Proof of completion: the installer's
+summary, a 200 from `https://account.signalmesh.dev/login`, and
+`php artisan poland:rate-provenance --todo` listing the unverified rates.
 
 **Owner: whoever picks up the briefing. Proof required for closing any item:
 the test or the command output named against it, recorded in the audit file.**

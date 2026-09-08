@@ -22,7 +22,7 @@ set -euo pipefail
 # Settings — change these before running if you want different values.
 # ---------------------------------------------------------------------------
 DOMAIN="${DOMAIN:-account.signalmesh.dev}"
-REPO="${REPO:-https://github.com/sabuj14eu/Accounting-}"
+REPO="${REPO:-git@github.com:sabuj14eu/Accounting-.git}"   # used only when not run from a checkout
 BRANCH="${BRANCH:-claude/poland-accounting-app-pijnfm}"
 APP_USER="${APP_USER:-accounting}"
 APP_ROOT="${APP_ROOT:-/srv/accounting}"
@@ -93,18 +93,42 @@ step "3/12  Użytkownik systemowy i katalogi"
 id -u "$APP_USER" >/dev/null 2>&1 || useradd -r -m -d "$APP_ROOT" -s /bin/bash "$APP_USER"
 mkdir -p "$APP_ROOT"
 chown "$APP_USER:$APP_USER" "$APP_ROOT"
+# useradd -m gives the home mode 750 on current Ubuntu; nginx (www-data) then
+# cannot enter foundation/public and every request becomes a PHP-FPM 404
+# "Primary script unknown". Learned on the first real run of the Shop
+# Intelligence script on this box. The root is traversable; .env stays 600.
+chmod 755 "$APP_ROOT"
 info "$APP_USER : $APP_ROOT"
 
 # ---------------------------------------------------------------------------
 step "4/12  Kod aplikacji"
 # ---------------------------------------------------------------------------
-if [ -d "$APP_ROOT/app/.git" ]; then
-    sudo -u "$APP_USER" git -C "$APP_ROOT/app" fetch origin "$BRANCH"
-    sudo -u "$APP_USER" git -C "$APP_ROOT/app" checkout -B "$BRANCH" "origin/$BRANCH"
+# The repository is PRIVATE: an HTTPS clone from GitHub asks for a token and
+# refuses passwords. So, like shop-intelligence/bin/prepare-server.sh, this
+# script copies the checkout it is run FROM with a local clone, and falls back
+# to $REPO (an SSH URL with a deploy key) only when no checkout surrounds it.
+# The clone runs as root because that checkout usually lives under /root,
+# which $APP_USER cannot enter; ownership is handed over afterwards.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_SOURCE="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -d "$LOCAL_SOURCE/.git" ]; then
+    SOURCE="$LOCAL_SOURCE"
+    BRANCH="$(git -C "$LOCAL_SOURCE" rev-parse --abbrev-ref HEAD)"
+    info "źródło: lokalna kopia $LOCAL_SOURCE (gałąź $BRANCH) — bez połączenia z GitHub"
 else
-    sudo -u "$APP_USER" git clone --branch "$BRANCH" "$REPO" "$APP_ROOT/app"
+    SOURCE="$REPO"
+    info "źródło: $REPO (gałąź $BRANCH) — repozytorium prywatne, wymaga klucza deploy"
 fi
-info "$(sudo -u "$APP_USER" git -C "$APP_ROOT/app" log --oneline -1)"
+GIT="git -c safe.directory=$APP_ROOT/app"
+if [ -d "$APP_ROOT/app/.git" ]; then
+    $GIT -C "$APP_ROOT/app" remote set-url origin "$SOURCE"
+    $GIT -C "$APP_ROOT/app" fetch origin "$BRANCH"
+    $GIT -C "$APP_ROOT/app" checkout -B "$BRANCH" "origin/$BRANCH"
+else
+    git clone --branch "$BRANCH" "$SOURCE" "$APP_ROOT/app"
+fi
+chown -R "$APP_USER:$APP_USER" "$APP_ROOT/app"
+info "$($GIT -C "$APP_ROOT/app" log --oneline -1)"
 
 # ---------------------------------------------------------------------------
 step "5/12  Baza danych (własna, oddzielna od tradingu)"
@@ -137,6 +161,35 @@ step "6/12  Instalacja Liberu ERP + modułu Poland (kilka minut)"
 # ---------------------------------------------------------------------------
 sudo -u "$APP_USER" env PATH="$PATH" COMPOSER_ALLOW_SUPERUSER=0 \
     bash "$APP_ROOT/app/bin/install-foundation.sh" "$APP_ROOT/foundation"
+
+# ---------------------------------------------------------------------------
+step "6b/12  Node 22 i budowa zasobów front-endu (Vite)"
+# ---------------------------------------------------------------------------
+# Upstream commits public/build/manifest.json but git-ignores the 24 asset
+# files it points at, so without a build the login and app layouts render
+# unstyled (the Poland views are standalone and do not need it). Vite 8 needs
+# Node >= 20.19, which Ubuntu's archive does not ship, so Node comes from
+# NodeSource with its signing key pinned.
+if ! command -v node >/dev/null 2>&1 || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list
+    apt-get update -q
+    apt-get install -y -q nodejs >/dev/null || die "Nie udało się zainstalować Node 22."
+fi
+info "Node $(node -v), npm $(npm -v)"
+( cd "$APP_ROOT/foundation" \
+    && sudo -u "$APP_USER" env HOME="$APP_ROOT" npm ci --no-audit --no-fund --loglevel=error \
+    && sudo -u "$APP_USER" env HOME="$APP_ROOT" npm run build --silent ) \
+    || die "Budowa zasobów (npm ci && npm run build) nie powiodła się — strona logowania byłaby bez stylów."
+MISSING_ASSETS="$("$PHP_BIN" -r '
+    $m = json_decode(file_get_contents($argv[1]), true);
+    $missing = 0;
+    foreach ($m as $e) { if (! file_exists(dirname($argv[1]) . "/" . $e["file"])) { $missing++; } }
+    echo $missing;' "$APP_ROOT/foundation/public/build/manifest.json")"
+[ "$MISSING_ASSETS" = "0" ] || die "Manifest Vite wskazuje $MISSING_ASSETS brakujących plików po budowie."
+info "zasoby zbudowane, manifest kompletny"
 
 # ---------------------------------------------------------------------------
 step "7/12  Konfiguracja .env"

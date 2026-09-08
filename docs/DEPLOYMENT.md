@@ -1,5 +1,22 @@
 # Deployment — account.signalmesh.dev
 
+> **State on 2026-09-08.** The DNS `A` record for `account` (62.171.164.19,
+> DNS only) now exists. The application has **not yet been installed on the
+> box**: the server had no PHP before the Shop Intelligence preparation ran,
+> and `bin/deploy-contabo.sh` had never been executed anywhere real. Running
+> it is the remaining step. Because the repository is private, run it from a
+> checkout already on the box (it clones locally, never from GitHub):
+>
+> ```bash
+> git -C /root/shop-prep pull
+> bash /root/shop-prep/bin/deploy-contabo.sh
+> ```
+>
+> The installer now also builds the foundation's Vite assets (Node 22 from
+> NodeSource), because upstream commits the manifest but not the 24 files it
+> names, which left the login page unstyled. It creates the admin account and
+> prints the password once; write it down.
+
 ## Production must refuse unverified rates
 
 ```bash
