@@ -146,7 +146,14 @@ APP_URL="$(env_get APP_URL)"
 if [ "${KSEF_CHECK_SKIP_HTTP:-0}" = "1" ]; then
     human "HTTP surface skipped (KSEF_CHECK_SKIP_HTTP=1, e.g. CI without a web server) — open the pages on the server"
 elif [ -n "$APP_URL" ] && command -v curl >/dev/null 2>&1; then
-    for path in /poland/ksef /poland/ksef/wizard/1 /poland/ksef/submissions /login; do
+    # Ask the application for its own paths — the KSeF routes are Polish
+    # (/konfiguracja, /faktury) and a hand-typed path only tests the typist.
+    KSEF_PATHS="$(artisan tinker --execute '
+foreach (["poland.ksef.status" => [], "poland.ksef.wizard" => ["step" => 1], "poland.ksef.submissions" => []] as $name => $params) {
+    echo route($name, $params, false), PHP_EOL;
+}' 2>/dev/null | grep '^/' || true)"
+    [ -n "$KSEF_PATHS" ] || fail "could not resolve the KSeF route paths from the application"
+    for path in $KSEF_PATHS /login; do
         CODE="$(curl -sS -o /dev/null -m 20 -w '%{http_code}' "$APP_URL$path" 2>/dev/null || echo 000)"
         case "$CODE" in
             200|302) pass "$path → HTTP $CODE (route answers; rendering is a HUMAN check below)" ;;
