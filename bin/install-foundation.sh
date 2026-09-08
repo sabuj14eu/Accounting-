@@ -116,7 +116,8 @@ $path = $argv[1];
 $lock = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 $rewritten = 0;
 foreach (["packages", "packages-dev"] as $section) {
-    foreach ($lock[$section] ?? [] as &$package) {
+    if (! isset($lock[$section])) { continue; }
+    foreach ($lock[$section] as &$package) {
         $url = $package["dist"]["url"] ?? "";
         if (preg_match("#^https://api\\.github\\.com/repos/([^/]+)/([^/]+)/zipball/([0-9a-f]+)$#", $url, $m)) {
             $package["dist"]["url"] = "https://codeload.github.com/{$m[1]}/{$m[2]}/legacy.zip/{$m[3]}";
