@@ -5,6 +5,11 @@ application, because there is none** (`SPEC_AUDIT_2026-09-08.md` §1). After
 these steps the domain resolves, has a certificate, has its own database, user,
 storage root and PHP-FPM pool, and serves one page that says exactly that.
 
+**Status: executed on 2026-09-08.** `https://shop.signalmesh.dev` answers
+200 with the holding page; the database user sees only its own schema. The
+three fixes the first run forced (PHP install, clone as root, root mode 755)
+are in the script. Re-running it is safe and changes nothing.
+
 Everything here is separate from `account.signalmesh.dev` and from the trading
 platform: different system user, database, database user, socket, server
 block, log files, storage root and backup directory. Nothing under

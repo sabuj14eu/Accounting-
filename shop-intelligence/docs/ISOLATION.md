@@ -86,14 +86,15 @@ deployment files were added and the scan widened to cover them. Until
 2026-09-08 the claim above that both checks "run in CI" was false — `ci.yml` had
 no Shop Intelligence job. It has one now: guard, suite on PHP 8.2/8.4/8.5, demo.
 
-## What is still deployment work
+## Deployment isolation — executed 2026-09-08
 
-The isolation *of the code* is proven. The isolation *of the deployment* — a
-separate database created with a separate user and separate grants, a separate
-systemd unit, a separate nginx vhost, a separate storage root and a separate
-backup — is written down in `.env.example`, scripted in `bin/prepare-server.sh`
-with the vhost in `deploy/nginx/`, and **not yet executed on the server**. The
-script creates the isolated infrastructure and one static page that says the
-application is not deployed; it proves after creating the database user that
-the user sees no other schema. Until it has been run, this section describes an
-intention rather than a fact. DNS and the commands: `docs/DNS_AND_SERVER.md`.
+`bin/prepare-server.sh` has been run on the box. Measured there: the
+`shop_intelligence` database user sees `information_schema` and
+`shop_intelligence` and nothing else; the pool is `php8.5-fpm-shop.sock`; the
+server block, logs, storage root and backup directory are its own;
+`https://shop.signalmesh.dev` answers 200 with the "not deployed" page. The
+accounting application is not on this box at all (no PHP was installed before
+this script ran, and `account.signalmesh.dev` has no DNS record), so today
+the isolation from it is the isolation of an absence. The checks above are
+what keep it true when it arrives. Runbook and proof:
+`docs/DNS_AND_SERVER.md`, `../docs/OPEN_ITEMS.md`.

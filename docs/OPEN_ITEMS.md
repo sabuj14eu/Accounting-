@@ -216,12 +216,33 @@ What follows is what the audit found still open, in build order.
     `pobrał`, "walked off with"), knowing the field-level rule (a flag has no
     person field) is the mechanism and the list is the net.
 
-### Deployment
-15. **`bin/prepare-server.sh` has not been run.** DNS and commands in
-    `shop-intelligence/docs/DNS_AND_SERVER.md`. Until it runs, the isolation of
-    the deployment is an intention. When it has run, the proof is the SHOW
-    DATABASES output for the `shop_intelligence` user and the page at
-    `https://shop.signalmesh.dev` saying "nie wdrożono".
+### Deployment — done 2026-09-08, proof recorded
+`bin/prepare-server.sh` was run on the Contabo box (62.171.164.19) after
+three fixes it forced: PHP had to be installed by the script (the box had
+none, so the accounting installer has never run there), the clone had to run
+as root because the source lives under `/root`, and the application root
+needed mode 755 for nginx. Proof, measured on the box:
+
+```
+curl -sI https://shop.signalmesh.dev | head -1      -> HTTP/1.1 200 OK
+curl -s  https://shop.signalmesh.dev | grep -c 'nie wdrożono'   -> 1
+SHOW DATABASES as shop_intelligence   -> information_schema, shop_intelligence
+```
+
+What exists on the box: user `shop`, `/srv/shop-intelligence` (755) with the
+checkout and one static page, `/var/lib/shop-intelligence` (750),
+`/var/backups/shop-intelligence` (700), database and user `shop_intelligence`
+seeing no other schema, pool `php8.5-fpm-shop.sock`, vhost with a Let's
+Encrypt certificate. **Still no application**: every request that is not the
+holding page reaches PHP-FPM and is answered 404 "Primary script unknown",
+which is correct, and the access log already shows internet scanners probing
+for debug panels. Nothing to fix; a reason not to put an unfinished
+application behind this name.
+
+Still open on the accounting side, found while doing this:
+**`account.signalmesh.dev` has no DNS record and the box has never run the
+accounting installer.** The accounting "live application" in
+`docs/DEPLOYMENT.md` is not running on this server.
 
 **Owner: whoever picks up the briefing. Proof required for closing any item:
 the test or the command output named against it, recorded in the audit file.**
