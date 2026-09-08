@@ -157,9 +157,36 @@ SQL
 info "baza $DB_NAME, użytkownik $DB_USER (uprawnienia wyłącznie do tej bazy)"
 
 # ---------------------------------------------------------------------------
+step "6a/12  Token GitHub dla Composera (tylko limit zapytań, bez uprawnień)"
+# ---------------------------------------------------------------------------
+# Upstream's composer.json lists 48 "vcs" repositories on GitHub and 246 of
+# its 673 locked packages download from the GitHub API. Anonymous access to
+# that API is limited to 60 requests per hour per address, so an install
+# without a token stops with "Could not authenticate against github.com".
+# A token with NO permissions (fine-grained, public repositories read-only)
+# lifts the limit to 5 000/h. It is stored only in Composer's auth.json for
+# $APP_USER (mode 600), never printed and never written anywhere else.
+COMPOSER_AUTH_FILE="$APP_ROOT/.config/composer/auth.json"
+if [ -f "$COMPOSER_AUTH_FILE" ] && grep -q '"github-oauth"' "$COMPOSER_AUTH_FILE"; then
+    info "token już zapisany w $COMPOSER_AUTH_FILE"
+else
+    TOKEN="${GITHUB_TOKEN:-}"
+    if [ -z "$TOKEN" ] && [ -t 0 ]; then
+        printf '    Wklej token GitHub (fine-grained, bez uprawnień, tylko "Public repositories"); nie zostanie wyświetlony: '
+        read -rs TOKEN; echo
+    fi
+    [ -n "$TOKEN" ] || die "Brak tokena GitHub. Utwórz go na https://github.com/settings/personal-access-tokens (Public repositories, bez uprawnień) i uruchom ponownie."
+    sudo -u "$APP_USER" env HOME="$APP_ROOT" PATH="$PATH" \
+        composer config --global github-oauth.github.com "$TOKEN" --quiet
+    unset TOKEN
+    chmod 600 "$COMPOSER_AUTH_FILE"
+    info "token zapisany w $COMPOSER_AUTH_FILE (600, właściciel $APP_USER)"
+fi
+
+# ---------------------------------------------------------------------------
 step "6/12  Instalacja Liberu ERP + modułu Poland (kilka minut)"
 # ---------------------------------------------------------------------------
-sudo -u "$APP_USER" env PATH="$PATH" COMPOSER_ALLOW_SUPERUSER=0 \
+sudo -u "$APP_USER" env HOME="$APP_ROOT" PATH="$PATH" COMPOSER_ALLOW_SUPERUSER=0 \
     bash "$APP_ROOT/app/bin/install-foundation.sh" "$APP_ROOT/foundation"
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,12 @@
 > bash /root/shop-prep/bin/deploy-contabo.sh
 > ```
 >
+> The installer asks once for a GitHub token with **no permissions**
+> (fine-grained, "Public repositories" only): the upstream ERP resolves 48
+> GitHub repositories and downloads 246 packages through the GitHub API,
+> whose anonymous limit is 60 requests per hour. The token is stored in
+> Composer's `auth.json` for the `accounting` user and nowhere else.
+>
 > The installer now also builds the foundation's Vite assets (Node 22 from
 > NodeSource), because upstream commits the manifest but not the 24 files it
 > names, which left the login page unstyled. It creates the admin account and
