@@ -80,10 +80,12 @@ here; it runs on the deployed PHP 8.5 application only.
    the gate document.
 2. **The Laravel layer has not been executed here** (PHP 8.4, no foundation).
    Migration `2026_09_08_000100`, the services, the controller, the Filament
-   page and hooks are syntax-checked only. This is Gate 1. Proof: CI job
-   `laravel-integration` green (it runs `bin/ksef-runtime-check.sh`), and the
-   same script passing on the server after `bin/deploy-contabo.sh`, plus its
-   HUMAN rows done logged in.
+   page and hooks were syntax-checked only. This is Gate 1. **Mechanical
+   part PASSED on the server 2026-09-08** (`bin/ksef-runtime-check.sh`:
+   43 rows, 0 failed, commit `dbd73ab`) — the migration applied on MariaDB,
+   the page is registered in both panels, health tells the truth. Still
+   open: the four HUMAN rows (screens, logged in) and the CI job
+   `laravel-integration` green on this branch.
 3. **DEMO and PRODUCTION base URLs are pinned from official material but not
    yet answered by the real hosts.** The hosts come from the official
    reference client's environment profiles and the `/v2` path from the
