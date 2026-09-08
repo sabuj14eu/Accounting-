@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-08 (ninth) — both applications reach the Contabo box
+
+- **Shop Intelligence infrastructure** prepared at `shop.signalmesh.dev`:
+  own user, database with a proven scoped grant, storage root, FPM pool,
+  certificate, one static page saying the application is not deployed.
+- **Accounting application installed** at `account.signalmesh.dev` by
+  `bin/deploy-contabo.sh`, first run ever on a real server. Fixes it forced,
+  all in the repository: local clone as root; root mode 755 for nginx; PHP
+  8.5 installed by the script; Node 22 + Vite build; partial
+  `composer update` for the module; upstream's 48 `vcs` repositories dropped
+  and 306 download URLs rewritten to `codeload.github.com` so that no GitHub
+  token is needed and nothing prompts.
+- Milestones unchanged: LIVE APPLICATION reached (now on the intended host);
+  PRODUCTION ACCOUNTING not reached; AUTOMATED FILING disabled.
+
 ## 2026-09-08 (eighth) — Shop Intelligence: the specification audit
 
 `shop-intelligence/docs/SPEC_AUDIT_2026-09-08.md`. What is actually implemented,

@@ -1,27 +1,19 @@
 # Deployment — account.signalmesh.dev
 
-> **State on 2026-09-08.** The DNS `A` record for `account` (62.171.164.19,
-> DNS only) now exists. The application has **not yet been installed on the
-> box**: the server had no PHP before the Shop Intelligence preparation ran,
-> and `bin/deploy-contabo.sh` had never been executed anywhere real. Running
-> it is the remaining step. Because the repository is private, run it from a
-> checkout already on the box (it clones locally, never from GitHub):
->
-> ```bash
-> git -C /root/shop-prep pull
-> bash /root/shop-prep/bin/deploy-contabo.sh
-> ```
->
-> The installer needs **no GitHub token**: it drops the upstream ERP's 48
-> GitHub repository entries (every package from them is pinned in the lock)
-> and rewrites the 246 package download URLs from `api.github.com`, whose
-> anonymous limit is 60 requests per hour, to `codeload.github.com`, which
-> has no such limit. Nothing prompts during the install.
->
-> The installer now also builds the foundation's Vite assets (Node 22 from
-> NodeSource), because upstream commits the manifest but not the 24 files it
-> names, which left the login page unstyled. It creates the admin account and
-> prints the password once; write it down.
+> **Installed on the Contabo box on 2026-09-08** (62.171.164.19, DNS only)
+> by `bin/deploy-contabo.sh`, run from a local checkout, with no GitHub
+> token. The installer's summary reported: database `accounting` with its
+> own user, Redis DB 3 / cache 4, pool `php8.5-fpm-accounting.sock`,
+> `accounting-queue.service` and `accounting-scheduler.timer`, own nginx
+> server block with a certificate, admin account created. What the first
+> real run forced into the installer: local clone as root (private repo,
+> source under `/root`), root mode 755 for nginx, PHP 8.5 from the ondrej
+> repository, a Node 22 + Vite build (upstream commits the manifest but not
+> its 24 assets), a partial `composer update` for the module, upstream's 48
+> `vcs` repositories dropped and the 306 download URLs rewritten from
+> `api.github.com` to `codeload.github.com` so that nothing prompts.
+> **Production accounting is still not reached**: rates unverified, pilot
+> not done (`docs/OPEN_ITEMS.md`).
 
 ## Production must refuse unverified rates
 
