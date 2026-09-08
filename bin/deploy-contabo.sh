@@ -166,27 +166,54 @@ step "6a/12  Token GitHub dla Composera (tylko limit zapytań, bez uprawnień)"
 # A token with NO permissions (fine-grained, public repositories read-only)
 # lifts the limit to 5 000/h. It is stored only in Composer's auth.json for
 # $APP_USER (mode 600), never printed and never written anywhere else.
-COMPOSER_AUTH_FILE="$APP_ROOT/.config/composer/auth.json"
-if [ -f "$COMPOSER_AUTH_FILE" ] && grep -q '"github-oauth"' "$COMPOSER_AUTH_FILE"; then
-    info "token już zapisany w $COMPOSER_AUTH_FILE"
-else
-    TOKEN="${GITHUB_TOKEN:-}"
-    if [ -z "$TOKEN" ] && [ -t 0 ]; then
-        printf '    Wklej token GitHub (fine-grained, bez uprawnień, tylko "Public repositories"); nie zostanie wyświetlony: '
-        read -rs TOKEN; echo
+export COMPOSER_HOME="$APP_ROOT/.config/composer"
+COMPOSER_AUTH_FILE="$COMPOSER_HOME/auth.json"
+mkdir -p "$COMPOSER_HOME"; chown -R "$APP_USER:$APP_USER" "$APP_ROOT/.config"
+
+# A token is accepted only after GitHub confirms it raises the limit. A stored
+# token that has since been revoked would otherwise send Composer straight
+# back to the SSH fallback with no explanation.
+token_works() {
+    local limit
+    limit="$(curl -sS -m 15 -H "Authorization: Bearer $1" https://api.github.com/rate_limit 2>/dev/null \
+        | "$PHP_BIN" -r 'echo (int) (json_decode(stream_get_contents(STDIN), true)["resources"]["core"]["limit"] ?? 0);')"
+    [ "${limit:-0}" -ge 1000 ]
+}
+
+TOKEN=""
+if [ -f "$COMPOSER_AUTH_FILE" ]; then
+    TOKEN="$("$PHP_BIN" -r 'echo json_decode(file_get_contents($argv[1]), true)["github-oauth"]["github.com"] ?? "";' "$COMPOSER_AUTH_FILE")"
+    if [ -n "$TOKEN" ] && token_works "$TOKEN"; then
+        info "zapisany token działa (limit GitHub API potwierdzony)"
+    else
+        [ -z "$TOKEN" ] || warn "zapisany token NIE działa (unieważniony lub błędny) — potrzebny nowy"
+        TOKEN=""
     fi
-    [ -n "$TOKEN" ] || die "Brak tokena GitHub. Utwórz go na https://github.com/settings/personal-access-tokens (Public repositories, bez uprawnień) i uruchom ponownie."
-    sudo -u "$APP_USER" env HOME="$APP_ROOT" PATH="$PATH" \
-        composer config --global github-oauth.github.com "$TOKEN" --quiet
-    unset TOKEN
-    chmod 600 "$COMPOSER_AUTH_FILE"
-    info "token zapisany w $COMPOSER_AUTH_FILE (600, właściciel $APP_USER)"
 fi
+if [ -z "$TOKEN" ]; then
+    TOKEN="${GITHUB_TOKEN:-}"
+    while :; do
+        if [ -z "$TOKEN" ] && [ -t 0 ]; then
+            printf '    Wklej token GitHub (fine-grained, bez uprawnień, tylko "Public repositories"); nie zostanie wyświetlony: '
+            read -rs TOKEN; echo
+        fi
+        [ -n "$TOKEN" ] || die "Brak tokena GitHub. Utwórz go na https://github.com/settings/personal-access-tokens (Public repositories, bez uprawnień) i uruchom ponownie."
+        if token_works "$TOKEN"; then break; fi
+        warn "GitHub nie potwierdził tego tokena (nieprawidłowy, unieważniony lub wygasły). Spróbuj ponownie."
+        TOKEN=""
+        [ -t 0 ] || die "Token z GITHUB_TOKEN nie działa."
+    done
+    sudo -u "$APP_USER" env HOME="$APP_ROOT" COMPOSER_HOME="$COMPOSER_HOME" PATH="$PATH" \
+        composer config --global github-oauth.github.com "$TOKEN" --quiet
+    chmod 600 "$COMPOSER_AUTH_FILE"; chown "$APP_USER:$APP_USER" "$COMPOSER_AUTH_FILE"
+    info "token potwierdzony i zapisany w $COMPOSER_AUTH_FILE (600, właściciel $APP_USER)"
+fi
+unset TOKEN
 
 # ---------------------------------------------------------------------------
 step "6/12  Instalacja Liberu ERP + modułu Poland (kilka minut)"
 # ---------------------------------------------------------------------------
-sudo -u "$APP_USER" env HOME="$APP_ROOT" PATH="$PATH" COMPOSER_ALLOW_SUPERUSER=0 \
+sudo -u "$APP_USER" env HOME="$APP_ROOT" COMPOSER_HOME="$COMPOSER_HOME" PATH="$PATH" COMPOSER_ALLOW_SUPERUSER=0 \
     bash "$APP_ROOT/app/bin/install-foundation.sh" "$APP_ROOT/foundation"
 
 # ---------------------------------------------------------------------------

@@ -70,6 +70,18 @@ php -r '
 $path = $argv[1];
 $json = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 
+// Upstream lists 48 "vcs" repositories on GitHub. They exist only so that
+// Composer can RESOLVE liberusoftware/* packages, and every one of those is
+// already pinned in composer.lock with a download URL. Keeping them costs
+// about 150 GitHub API calls on every update, and when the anonymous limit
+// (60/h) is hit Composer silently falls back to cloning over SSH and stops at
+// an interactive host-key prompt. So they are dropped: the lock resolves the
+// packages, the path repositories resolve the modules, nothing else is needed.
+$json["repositories"] = array_values(array_filter(
+    $json["repositories"] ?? [],
+    static fn ($repository) => ($repository["type"] ?? null) !== "vcs"
+));
+
 $already = false;
 foreach ($json["repositories"] ?? [] as $repository) {
     if (($repository["url"] ?? null) === "modules/poland") { $already = true; break; }
@@ -97,7 +109,10 @@ file_put_contents(
 # nothing but PHP, so nothing else can move) and installs the other ~670
 # packages exactly as upstream locked them.
 say "composer update signalmesh/poland-accounting (to potrwa — foundation ma ~670 pakietow)"
-( cd "$TARGET" && composer update signalmesh/poland-accounting \
+# If anything still tries to reach GitHub over git, it must fail at once
+# rather than wait at a host-key or password prompt.
+( cd "$TARGET" && GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+    composer update signalmesh/poland-accounting \
     --no-interaction --prefer-dist --no-dev )
 
 # Laravel discovers a package's service provider from a Composer script. Skipping
