@@ -53,14 +53,28 @@ step "1/8  Pakiety"
 # ---------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q ca-certificates curl git nginx mariadb-server >/dev/null
+apt-get install -y -q ca-certificates curl gnupg lsb-release software-properties-common \
+    git nginx mariadb-server >/dev/null
+
+# PHP comes from the same third-party repository the accounting installer uses
+# (Ubuntu: ppa:ondrej/php, Debian: packages.sury.org). Ubuntu's own archive
+# ships one PHP version per release and it is rarely the one wanted. The
+# analysis core itself needs only 8.2; 8.5 is chosen so that this box can
+# later also host the accounting application, which requires 8.5, without a
+# second PHP install.
 if ! command -v "php$PHP_VER" >/dev/null 2>&1; then
-    warn "php$PHP_VER nie jest zainstalowane. Instalator księgowości (bin/deploy-contabo.sh) dodaje repozytorium PHP;"
-    warn "jeśli księgowość działa na tej maszynie, PHP już jest. W przeciwnym razie zainstaluj php$PHP_VER-fpm i uruchom ponownie."
-    die "brak php$PHP_VER"
+    if grep -qi ubuntu /etc/os-release; then
+        add-apt-repository -y ppa:ondrej/php >/dev/null
+    else
+        curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg
+        echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" \
+            > /etc/apt/sources.list.d/sury-php.list
+    fi
+    apt-get update -q
 fi
 apt-get install -y -q "php$PHP_VER-fpm" "php$PHP_VER-cli" "php$PHP_VER-mysql" "php$PHP_VER-mbstring" \
-    "php$PHP_VER-xml" "php$PHP_VER-intl" "php$PHP_VER-bcmath" >/dev/null
+    "php$PHP_VER-xml" "php$PHP_VER-intl" "php$PHP_VER-bcmath" >/dev/null \
+    || die "Nie udało się zainstalować PHP $PHP_VER. Sprawdź, czy repozytorium ondrej/sury zostało dodane (apt-get update powyżej)."
 info "nginx, MariaDB, PHP $("php$PHP_VER" -r 'echo PHP_VERSION;')"
 
 # ---------------------------------------------------------------------------

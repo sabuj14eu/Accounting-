@@ -104,9 +104,9 @@ bash /root/shop-prep/shop-intelligence/bin/prepare-server.sh
 
 The script is idempotent and stops at the first failed check. In order it:
 
-1. installs nginx, MariaDB and the PHP 8.5 FPM packages (PHP 8.5 must already be
-   present — the accounting installer added the repository; if this box does
-   not run accounting, install `php8.5-fpm` first);
+1. installs nginx, MariaDB and PHP 8.5 (adding the ondrej/sury PHP
+   repository if the box does not have it — verified 2026-09-08 that this box
+   had no PHP at all, so the accounting installer has never run here either);
 2. creates the `shop` user, `/srv/shop-intelligence`, `/var/lib/shop-intelligence`
    (750) and `/var/backups/shop-intelligence` (700, root);
 3. copies the checkout it was run from into `/srv/shop-intelligence/app` with
