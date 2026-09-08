@@ -90,8 +90,15 @@ file_put_contents(
 ' "$TARGET/composer.json"
 
 # --- Install ----------------------------------------------------------------
-say "composer install (to potrwa — foundation ma ~670 pakietow)"
-( cd "$TARGET" && composer install --no-interaction --prefer-dist --no-dev )
+# The module was added to composer.json above, and upstream's composer.lock
+# does not know it. `composer install` refuses that ("Required package ... is
+# not present in the lock file") rather than warning, as it did on older
+# Composer releases. A partial update resolves ONLY the module (it requires
+# nothing but PHP, so nothing else can move) and installs the other ~670
+# packages exactly as upstream locked them.
+say "composer update signalmesh/poland-accounting (to potrwa — foundation ma ~670 pakietow)"
+( cd "$TARGET" && composer update signalmesh/poland-accounting \
+    --no-interaction --prefer-dist --no-dev )
 
 # Laravel discovers a package's service provider from a Composer script. Skipping
 # scripts installs the module and silently never registers it: no commands, no
