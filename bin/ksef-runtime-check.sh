@@ -28,7 +28,16 @@ env_get() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr
 
 [ -f "$TARGET/artisan" ] || { echo "Brak $TARGET/artisan — podaj katalog foundation." >&2; exit 2; }
 cd "$TARGET"
-artisan() { "$PHP_BIN" artisan "$@"; }
+# Run artisan as the application's owner, never as root: root would leave
+# root-owned files in storage/ and bootstrap/cache and see a different
+# environment from the one PHP-FPM, the queue and the scheduler run in.
+APP_OWNER="$(stat -c %U "$TARGET/artisan")"
+if [ "$(id -u)" -eq 0 ] && [ "$APP_OWNER" != "root" ]; then
+    artisan() { sudo -u "$APP_OWNER" "$PHP_BIN" artisan "$@"; }
+else
+    artisan() { "$PHP_BIN" artisan "$@"; }
+fi
+printf '        artisan runs as %s\n' "$([ "$(id -u)" -eq 0 ] && echo "$APP_OWNER" || id -un)"
 
 # --- 1. boot ------------------------------------------------------------------
 gate "1  Application boots on PHP 8.5"
@@ -95,11 +104,20 @@ COMMANDS="$(artisan list --raw 2>/dev/null)"
 for c in poland:ksef-test poland:ksef-sync poland:ksef-poll poland:ksef-health; do
     printf '%s' "$COMMANDS" | grep -q "^$c" && pass "command $c" || fail "command $c missing"
 done
-ROUTES="$(artisan route:list 2>/dev/null)"
+# Ask route:list for each route by name or path — the full listing truncates
+# columns to the terminal width, and a grep over it once missed a route that
+# was registered.
 for r in poland.ksef.status poland.ksef.test poland.ksef.sync poland.ksef.wizard poland.ksef.submissions poland.ksef.submissions.send; do
-    printf '%s' "$ROUTES" | grep -q "$r" && pass "route $r" || fail "route $r missing"
+    if artisan route:list --name="$r" 2>/dev/null | grep -q "$r"; then pass "route $r"; else fail "route $r missing"; fi
 done
-printf '%s' "$ROUTES" | grep -q 'poland-ksef' && pass "Filament page poland-ksef (Settings → Poland → KSeF)" || fail "Filament page poland-ksef not registered — was overlay/app copied into the foundation?"
+PAGE_ROUTES="$(artisan route:list --path=poland-ksef 2>&1)"
+PAGE_COUNT="$(printf '%s' "$PAGE_ROUTES" | grep -c 'poland-ksef' || true)"
+if [ "${PAGE_COUNT:-0}" -ge 1 ]; then
+    pass "Filament page poland-ksef registered ($PAGE_COUNT panel route(s): $(printf '%s' "$PAGE_ROUTES" | grep -oE '[a-z]+(/\{tenant\})?/poland-ksef' | tr '\n' ' '))"
+else
+    fail "Filament page poland-ksef not registered — route:list --path=poland-ksef printed:"
+    printf '%s\n' "$PAGE_ROUTES" | tail -6 | sed 's/^/        /'
+fi
 
 # --- 5. health from stored facts ---------------------------------------------
 gate "5  Health check runs and tells the truth about the transport"
