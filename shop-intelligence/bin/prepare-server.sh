@@ -25,7 +25,7 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-shop.signalmesh.dev}"
-REPO="${REPO:-https://github.com/sabuj14eu/Accounting-}"
+REPO="${REPO:-git@github.com:sabuj14eu/Accounting-.git}"   # used only when not run from a checkout
 BRANCH="${BRANCH:-claude/regression-map-audit-lis0w8}"
 APP_USER="${APP_USER:-shop}"
 APP_ROOT="${APP_ROOT:-/srv/shop-intelligence}"
@@ -76,11 +76,29 @@ info "$APP_USER : $APP_ROOT  storage: $STORAGE_ROOT  backup: $BACKUP_DIR"
 # ---------------------------------------------------------------------------
 step "3/8  Kod (analysis core — do testów i demo, nie serwowany)"
 # ---------------------------------------------------------------------------
+# The repository is PRIVATE, so an HTTPS clone from GitHub asks for a token
+# and password prompts fail. This script therefore never needs GitHub: it
+# copies the checkout it is running FROM (the one you already put on the box)
+# with a local git clone. Only when there is no checkout around it does it
+# fall back to $REPO, which then must be an SSH URL with a deploy key.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_SOURCE="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -d "$LOCAL_SOURCE/.git" ]; then
+    SOURCE="$LOCAL_SOURCE"
+    BRANCH="$(git -C "$LOCAL_SOURCE" rev-parse --abbrev-ref HEAD)"
+    info "źródło: lokalna kopia $LOCAL_SOURCE (gałąź $BRANCH) — bez połączenia z GitHub"
+else
+    SOURCE="$REPO"
+    info "źródło: $REPO (gałąź $BRANCH) — wymaga klucza deploy, repozytorium jest prywatne"
+fi
+
 if [ -d "$APP_ROOT/app/.git" ]; then
+    sudo -u "$APP_USER" git -C "$APP_ROOT/app" remote set-url origin "$SOURCE"
     sudo -u "$APP_USER" git -C "$APP_ROOT/app" fetch origin "$BRANCH"
     sudo -u "$APP_USER" git -C "$APP_ROOT/app" checkout -B "$BRANCH" "origin/$BRANCH"
 else
-    sudo -u "$APP_USER" git clone --branch "$BRANCH" "$REPO" "$APP_ROOT/app"
+    [ "$SOURCE" = "$LOCAL_SOURCE" ] && chmod -R o+rX "$LOCAL_SOURCE" 2>/dev/null || true
+    sudo -u "$APP_USER" git clone --branch "$BRANCH" "$SOURCE" "$APP_ROOT/app"
 fi
 info "$(sudo -u "$APP_USER" git -C "$APP_ROOT/app" log --oneline -1)"
 ( cd "$APP_ROOT/app/shop-intelligence" && sudo -u "$APP_USER" bash bin/check-shop-isolation.sh >/dev/null ) \
