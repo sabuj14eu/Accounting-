@@ -12,6 +12,11 @@
 > its 24 assets), a partial `composer update` for the module, upstream's 48
 > `vcs` repositories dropped and the 306 download URLs rewritten from
 > `api.github.com` to `codeload.github.com` so that nothing prompts.
+> Verified from the box after install: `/login` 200, `/poland` 302 to
+> login, `shop.signalmesh.dev` 200, and `accounting-queue`,
+> `accounting-scheduler.timer`, `php8.5-fpm`, `nginx`, `mariadb`,
+> `redis-server` all active. Public self-registration is disabled by the
+> installer; the admin panel is at `/admin/login`.
 > **Production accounting is still not reached**: rates unverified, pilot
 > not done (`docs/OPEN_ITEMS.md`).
 

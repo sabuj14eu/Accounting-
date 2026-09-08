@@ -399,8 +399,9 @@ cat <<SUMMARY
 
   ADRES        $SCHEME://$DOMAIN
   PULPIT       $SCHEME://$DOMAIN/poland      <- "co muszę zapłacić"
-  LOGOWANIE    $SCHEME://$DOMAIN/login
-  REJESTRACJA  $SCHEME://$DOMAIN/register
+  LOGOWANIE    $SCHEME://$DOMAIN/admin/login   <- panel administracyjny
+               $SCHEME://$DOMAIN/login         <- to samo konto, prosta strona
+  REJESTRACJA  wyłączona — konta zakłada administrator
 
   KONTO ADMINISTRATORA
 SUMMARY

@@ -155,6 +155,17 @@ say "composer update signalmesh/poland-accounting (to potrwa — foundation ma ~
 say "Skracam za dlugie nazwy indeksow (limit 64 znakow w MySQL/MariaDB)"
 "$REPO_ROOT/bin/patch-foundation-index-names.sh" "$TARGET"
 
+# Upstream ships with public self-registration switched on. An accounting
+# application on a public domain must not let strangers create accounts:
+# a registered user is an authenticated user, and the Poland dashboard is
+# behind authentication, not behind a role. Accounts are created by an
+# administrator (the installer creates the first one). Idempotent.
+say "Wyłączam publiczną rejestrację (Fortify Features::registration)"
+sed -i -E 's|^(\s*)Features::registration\(\),|\1// Features::registration(), // disabled by install-foundation.sh: no public sign-up on an accounting system|' \
+    "$TARGET/config/fortify.php"
+grep -q '^\s*// Features::registration()' "$TARGET/config/fortify.php" \
+    || die "Nie udało się wyłączyć rejestracji w config/fortify.php — sprawdź plik ręcznie."
+
 say "package:discover"
 ( cd "$TARGET" && php artisan package:discover --ansi )
 

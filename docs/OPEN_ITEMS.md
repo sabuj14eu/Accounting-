@@ -242,9 +242,11 @@ application behind this name.
 On the accounting side, found and closed while doing this: the box had never
 run the accounting installer. The DNS record for `account.signalmesh.dev` was
 added on 2026-09-08 and `bin/deploy-contabo.sh` was run to completion the same
-day after six fixes for a real box (see `docs/DEPLOYMENT.md`). Proof is the
-installer's summary on the box; the external checks (`/login` 200, `/poland`
-200) are recorded there once run. The P0 items above it in this file — rate
+day after six fixes for a real box (see `docs/DEPLOYMENT.md`). Proof, measured on the
+box: `/login` 200, `/poland` 302 to login, six services active. Found on the
+first look at the running application: upstream leaves public
+self-registration on; the installer now disables it, since the Poland
+dashboard sits behind authentication and not behind a role. The P0 items above it in this file — rate
 verification and the pilot — are unchanged by the install.
 
 **Owner: whoever picks up the briefing. Proof required for closing any item:
