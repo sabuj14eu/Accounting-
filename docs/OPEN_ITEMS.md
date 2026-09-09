@@ -50,6 +50,104 @@ real filing from cash-register data alone. Phase 2 (KPiR) closes it.
 
 ---
 
+## P0 — found by the accounting gap audit (2026-09-09)
+
+Full detail in `docs/ACCOUNTING_GAP_AUDIT.md`. Recorded here so they are not
+lost in a long document.
+
+### Most of the application has no way in
+`BankImportService`, `KsefIngestService`, `MonthCloseService`,
+`TransactionMatcher`, `DocumentClassifier` and `GovernmentDocumentModel` are
+built, container-wired and tested, and **called by no route and no Artisan
+command.** `MonthCloseService` — the ten-step month close — is registered in
+`PolandServiceProvider` and invoked by nothing. The three commands are
+`poland:report`, `poland:verify-rates`, `poland:rate-provenance`.
+**Next step: decide the surface. A route-coverage test would stop this
+recurring — every registered service reachable from a route or a command.**
+
+### The data model is monthly; a food shop is daily
+`pl_sales_reports` is unique on `(tax_profile_id, period, status)` and has **no
+date column** — one row per month. `pl_purchase_summaries` is one row per month
+with a single net total, a single input-VAT total and a document count.
+So there is nowhere to store: a date, cash vs card vs Glovo, refunds, discounts,
+cash expected vs counted vs difference, Z-report numbers, individual purchase
+invoices, cost categories, or a supplier.
+**This is a schema decision and it blocks everything else. Do not build screens
+over the monthly model and migrate later.**
+
+### No taxpayer-profile form, and half the profile is missing
+`pl_tax_profiles` has no address, no bank account, no PKD and no CEIDG data —
+and there is no create or edit screen for any of it, including `pit_regime`,
+`lump_sum_rate` and `vat_status`, which change the tax by multiples. PKD is the
+field that decides the ryczałt rate. NIP has no checksum validation.
+
+### JPK_V7 cannot be produced at all
+`SchemaRegistry` is constructed empty, and **no class in the codebase implements
+`DocumentPreparer`.** `jpkStructure` on `VatSettlement` is a label naming which
+structure would apply. For an active VAT taxpayer this is a monthly legal
+obligation.
+
+### No document upload path exists anywhere
+`pl_government_documents.stored_path` is populated by nothing. There is no
+upload route for a purchase invoice, a receipt, a bank statement or a government
+letter. Stored files are not encrypted at rest (unlike the KSeF token) and have
+no retention policy. Compounded by the missing OCR (below).
+
+### Glovo has no representation in the accounting module
+`PlatformSettlement` in `shop-intelligence/` models gross orders, commission,
+fees, expected payout and the difference — with **no database, no UI, and no VAT
+split on the commission**, which is deductible input VAT. `TransactionCategory`
+has no platform-settlement case. It must not be built inside shop-intelligence:
+that application has no path to a tax return, by design.
+
+### Quarterly VAT is modelled but settlement is monthly throughout
+Already listed under P1 below; raised to P0 visibility because a quarterly
+taxpayer would be given the wrong period, silently.
+
+## P1 — found by the accounting gap audit (2026-09-09)
+
+### A logged-in user can read any taxpayer profile
+`DashboardController::profileFor()` does `TaxProfileModel::find((int)
+$request->query('profile'))` with **no ownership or tenancy check**, and all
+nine routes sit behind `web` + `auth` with no per-profile authorisation. With
+one taxpayer this is theoretical. It stops being theoretical at two.
+
+### No suppliers, no cost categories, no payroll
+No supplier table or concept (only denormalised strings on documents). No cost
+category on any stored cost — your fifteen categories map to nothing. **No
+payroll in any form**: no table, no model, no calculator, no test. Whether
+payroll is P1 or P3 depends on a question nobody has answered — **does the shop
+employ anyone.**
+
+### No year-end: no annual return, no annual health reconciliation
+No PIT-28 / PIT-36 / PIT-36L. Crossing a ryczałt revenue band mid-year creates a
+year-end top-up; the report warns, it does not compute it. The holiday calendar
+ends in 2027.
+
+### No export of any kind
+No CSV, PDF, XML or JSON export route; no accountant handover package; no GDPR
+export or erasure path. The append-only audit trail is correct for accounting
+and in real tension with erasure — that tension should be written down, not
+discovered later. `actor_ip` is personal data with no stated retention period.
+
+### The privacy property is true but not enforced
+`docs/DATA_PRIVACY_AND_EXTERNAL_CONNECTIONS.md` verifies that **no accounting
+data leaves the server and no code here could send any** — zero outbound
+primitives, zero URL literals in application source, no HTTP client in either
+composer.json, `MAIL_MAILER=log`, no analytics, no AI provider. But there is no
+privacy equivalent of `bin/check-isolation.sh`: nothing would fail if somebody
+added Guzzle and posted a settlement outward.
+**Next step: `bin/check-privacy.sh` plus a declared destination allowlist (today
+it would hold two inactive entries, KSeF and NBP), run in CI and pre-deploy.**
+
+### The Liberu ERP foundation has not been privacy-audited
+This repository is a module; the host Laravel application is installed, not
+vendored, and its dependency tree was **not** scanned. That is where an outbound
+path would realistically come from — a mailer, a notification channel, a
+monitoring or debug package, an update check. **"Nothing leaves my server"
+cannot be claimed for the deployed system until the foundation gets the same
+scan.**
+
 ## P1 — needed for a complete Phase 1
 
 ### Polish chart of accounts and company defaults not configured
