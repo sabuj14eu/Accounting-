@@ -124,7 +124,16 @@ bin/data-safety-drill.sh   Backup, restore, and prove the records survived
 bin/enable-email-verification.sh  Opt-in email confirmation for new accounts
 deploy/                    nginx, systemd units, verified backup script
 docs/                      Architecture, isolation, deployment, roadmap
+docs/KSEF_USER_GUIDE.md    KSeF setup manual for a new user (see the note below)
 ```
+
+`docs/KSEF_USER_GUIDE.md` is the customer-facing KSeF manual: what KSeF is, what
+to gather before configuring it, where it appears on screen, every status string
+the application can show and what it means, troubleshooting, and the credential
+rules. It documents the implementation **as it is**, so it is equally explicit
+about what does not exist: there is no KSeF admin page, no configuration wizard,
+no test-connection button and no invoice submission of any kind. Its Appendix A
+maps every claim to the file it was verified against.
 
 The Liberu ERP is **installed, not vendored**. Upstream is pinned by commit in
 `bin/install-foundation.sh`, so upgrading it is a one-line change rather than a

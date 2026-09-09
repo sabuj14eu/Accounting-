@@ -70,6 +70,75 @@ propagation. `UnconfiguredKsefClient` refuses until a transport exists.
 **Next step: implement `KsefClient` against the current official API, verified
 at source, and test against the KSeF test environment.** See `docs/AUTOMATION.md`.
 
+### KSeF has no user interface at all
+Found on 2026-09-09 while writing `docs/KSEF_USER_GUIDE.md`. The KSeF machinery
+is built and tested; **none of it is reachable from a browser.** A customer
+cannot see, configure, start or check anything about KSeF except one status row.
+
+What was searched for and does not exist:
+- **No `Admin` menu, no `Tax & Compliance` section, no `KSeF` page.** The module
+  serves exactly nine routes (`modules/poland/routes/web.php`) and none is a
+  KSeF route. Only three Blade templates exist: `dashboard`, `report`, `history`.
+- **No configuration wizard** — no environment step, no seller step, no token
+  step, no defaults step, no "test and power on" step.
+- **No "Test connection" button**, no success/failure banner.
+- **No token entry form.** Credentials reach the system only as a row written
+  directly into `pl_ksef_credentials`, plus `.env`.
+- **No taxpayer profile create/edit form.** The dashboard *reads* profiles and
+  shows "Najpierw skonfiguruj profil podatnika." when there is none, but offers
+  nowhere to create one. Every one of the ~20 profile fields is
+  administrator-only, including the ones that change the tax by multiples
+  (`pit_regime`, `lump_sum_rate`, `vat_status`).
+- **No way to trigger a KSeF sync.** `MonthCloseService` is registered in
+  `PolandServiceProvider` and **called by no route and no Artisan command**. The
+  module's three commands are `poland:report`, `poland:verify-rates`,
+  `poland:rate-provenance`. So `KsefIngestService::sync()` — which is built,
+  tested and correct — has no caller in the shipped application.
+
+The single status row that does exist is the KSeF entry in the "Stan integracji"
+card on `/poland`, and it is accurate.
+
+**Next step: decide whether KSeF configuration is meant to be a customer-facing
+screen or to stay administrator-only. If customer-facing, it needs a taxpayer
+profile form first — the profile is the prerequisite and it has no form either.**
+Nothing here is a defect in the KSeF code; it is a missing surface.
+
+### The taxpayer profile has no address fields
+`pl_tax_profiles` carries `name`, `nip`, `regon` and the tax-regime columns, and
+**no street, building, flat, postcode, city, voivodeship, country, email, phone,
+bank account or PKD code.** Enough for KSeF's NIP-based matching and for the tax
+engine; not enough for anything that has to print or transmit a seller identity.
+Worth settling deliberately before a future feature discovers it by failing.
+
+### Four accepted request fields have no input on the form
+`DashboardController::storeSales()` validates `designation`, `register_id` and
+`report_number`, and `storeCosts()` validates `note`. **`dashboard.blade.php`
+renders an input for none of them.** So from a browser the VAT designation can
+never be overridden (it is always derived from the profile), and a cash-register
+identifier or report number can never be recorded — which matters because a
+sales figure with no register/report reference cannot be reconciled against the
+register's own paper trail. Either render the inputs or drop the validation
+rules; carrying both makes the contract look wider than it is.
+
+### Invoice issuing and submission were requested and do not exist by design
+Recorded so the refusal is written down rather than rediscovered. There is no
+outgoing-invoices page, no invoice creation, and no submission path, in TEST or
+production. Three independent mechanisms enforce it and each is tested:
+`KsefScope::allowed()` returns `InvoiceRead` only, `FilingChannel::automated()`
+is `false` for every channel, and `IntegrationStatus::governmentSubmission()` is
+hard-coded to `DISABLED`. **This is not a gap to close casually.** Issuing an
+invoice in a taxpayer's name is a materially different act from reading their
+inbox and would need a deliberate decision with a stated reason, not a
+configuration change.
+
+### The KSeF user guide is in English, and the application is in Polish
+`docs/KSEF_USER_GUIDE.md` quotes every on-screen string verbatim in Polish with
+a translation, but its own prose is English, matching the rest of `docs/`. The
+intended reader is a Polish sole trader. **A Polish translation is needed before
+it is handed to a customer.** It is also not wired into the application as a
+page — it is a repository document, because adding a route or a view would have
+been an application-code change.
+
 ### No OCR or PDF text extraction
 No `tesseract`, no `pdftotext` in the environment. `UnavailableTextExtractor`
 refuses, and `PdfStatementParser` refuses with a route forward (CSV/MT940/camt).
