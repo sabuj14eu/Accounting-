@@ -50,14 +50,21 @@ real filing from cash-register data alone. Phase 2 (KPiR) closes it.
 
 ---
 
-## P1 — the redesigned accounting workflow (design accepted 2026-09-10, nothing built)
+## P1 — the redesigned accounting workflow (stage B built 2026-09-10; stages C–F not started)
 
 `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` is the binding design: automatic
 KSeF incoming invoices → review → approval → purchase/VAT posting → optional
 per-product inventory; monthly sales (shop + Glovo); Glovo as a settlement
 source; VAT → JPK_V7 → PIT → ZUS. Stages B–F in its section 15 are each a
-separate approval. Until stage B ships, the application still takes monthly
-purchase totals by hand and shows KSeF as NOT CONNECTED.
+separate approval. **Stage B is built and unit-tested** (CHANGELOG 2026-09-10
+second entry): review inbox, postings, optional inventory, Glovo settlement,
+sales channels. Its Laravel layer has NOT yet been run against a database
+here (PHP 8.5 + the foundation are needed) — the `laravel-integration` CI job
+and the Contabo box are where that proof comes from. Until then the migrations
+and screens are "written and linted", not "executed".
+
+Still to build: **C** real KSeF transport · **D** Glovo statement importer ·
+**E** JPK_V7 preparation · **F** trusted-supplier auto-approval.
 
 Decisions the design deliberately leaves to the owner and the accountant, and
 refuses to post without:
@@ -71,8 +78,10 @@ refuses to post without:
   modules disabled, no third-party keys, CSP header) — verified on the server,
   not from a clone.
 
-**Proof required to delete this entry: stage B merged with its tests green,
-and the four decisions above recorded in the profile and the audit trail.**
+**Proof required to delete this entry: stage B migrations applied and the
+inbox → approve → posting → stock flow executed on a real database (CI job or
+the box), stages C–F each shipped or explicitly cancelled, and the four
+decisions above recorded in the profile and the audit trail.**
 
 ## P1 — needed for a complete Phase 1
 

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2023/06/29/12648/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (2)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>2</WariantFormularza>
+    <DataWytworzeniaFa>2026-08-11T09:52:00Z</DataWytworzeniaFa>
+    <SystemInfo>HurtSoft 4.2</SystemInfo>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>1132316939</NIP>
+      <Nazwa>Hurtownia Napojów Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <NIP>5260250274</NIP>
+      <Nazwa>Kebab u Jana</Nazwa>
+    </DaneIdentyfikacyjne>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-08-11</P_1>
+    <P_2>FV/2026/08/417</P_2>
+    <P_6>2026-08-11</P_6>
+    <P_13_1>1400.00</P_13_1>
+    <P_14_1>322.00</P_14_1>
+    <P_13_3>64.00</P_13_3>
+    <P_14_3>3.20</P_14_3>
+    <P_15>1789.20</P_15>
+    <RodzajFaktury>VAT</RodzajFaktury>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa>
+      <P_7>Coca-Cola 0,5 l karton 24 szt</P_7>
+      <Indeks>CC05-24</Indeks>
+      <P_8A>op</P_8A>
+      <P_8B>10</P_8B>
+      <P_9A>120.00</P_9A>
+      <P_11>1200.00</P_11>
+      <P_11Vat>276.00</P_11Vat>
+      <P_12>23</P_12>
+    </FaWiersz>
+    <FaWiersz>
+      <NrWierszaFa>2</NrWierszaFa>
+      <P_7>Woda Żywiec 0,5 l karton 12 szt</P_7>
+      <P_8A>op</P_8A>
+      <P_8B>5</P_8B>
+      <P_9A>40.00</P_9A>
+      <P_11>200.00</P_11>
+      <P_12>23</P_12>
+    </FaWiersz>
+    <FaWiersz>
+      <NrWierszaFa>3</NrWierszaFa>
+      <P_7>Cebula żółta</P_7>
+      <P_8A>kg</P_8A>
+      <P_8B>20</P_8B>
+      <P_9A>3.20</P_9A>
+      <P_11>64.00</P_11>
+      <P_12>5</P_12>
+    </FaWiersz>
+    <Platnosc>
+      <TerminPlatnosci>
+        <Termin>2026-08-25</Termin>
+      </TerminPlatnosci>
+      <FormaPlatnosci>6</FormaPlatnosci>
+      <RachunekBankowy>
+        <NrRB>PL61109010140000071219812874</NrRB>
+      </RachunekBankowy>
+    </Platnosc>
+  </Fa>
+</Faktura>

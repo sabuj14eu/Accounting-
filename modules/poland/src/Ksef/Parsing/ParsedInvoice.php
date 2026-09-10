@@ -44,7 +44,85 @@ final class ParsedInvoice implements \JsonSerializable
          * @var list<string>
          */
         public readonly array $unknownElements = [],
+        /** @var list<InvoiceLine> the `FaWiersz` rows, in document order */
+        public readonly array $lines = [],
+        public readonly ?PaymentTerms $payment = null,
+        /** Present only on a correction invoice that names what it corrects. */
+        public readonly ?CorrectionReference $correction = null,
+        public readonly ?DateTimeImmutable $servicePeriodFrom = null,
+        public readonly ?DateTimeImmutable $servicePeriodTo = null,
     ) {
+    }
+
+    public function hasLines(): bool
+    {
+        return $this->lines !== [];
+    }
+
+    public function paymentTerms(): PaymentTerms
+    {
+        return $this->payment ?? PaymentTerms::none();
+    }
+
+    /**
+     * Whether the line rows add up to what the header declares.
+     *
+     * Compared overall (net and VAT) and per rate where the header states a
+     * rate total. Null when there is nothing to compare — no lines, or no
+     * header totals. A disagreement is never "fixed" in either direction: the
+     * header is what the issuer declared and KSeF accepted, the lines are what
+     * stock and categories are read from, and only a person may decide which
+     * one is wrong.
+     */
+    public function lineTotalsAgree(): ?bool
+    {
+        if ($this->lines === [] || $this->metadata->net === null) {
+            return null;
+        }
+
+        $net = Money::zero();
+        $vat = Money::zero();
+        $byLabel = [];
+        foreach ($this->lines as $line) {
+            if ($line->net === null) {
+                return null; // cannot compare a line whose net is unknown
+            }
+            $net = $net->plus($line->net);
+            if ($line->vat !== null) {
+                $vat = $vat->plus($line->vat);
+            }
+            $label = self::headerLabelFor($line->designation());
+            if ($label !== null) {
+                $byLabel[$label] = isset($byLabel[$label]) ? $byLabel[$label]->plus($line->net) : $line->net;
+            }
+        }
+
+        if (! $net->equals($this->metadata->net)) {
+            return false;
+        }
+        if ($this->metadata->vat !== null && ! $vat->equals($this->metadata->vat)) {
+            return false;
+        }
+        foreach ($byLabel as $label => $lineNet) {
+            if (isset($this->netByVatRate[$label]) && ! $this->netByVatRate[$label]['net']->equals($lineNet)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** The header's per-rate label (P_13_x) that a line designation falls under. */
+    private static function headerLabelFor(?string $designation): ?string
+    {
+        return match ($designation) {
+            '0.23' => '23%',
+            '0.08' => '8%',
+            '0.05' => '5%',
+            '0' => '0%',
+            'zw' => 'zw',
+            default => null,
+        };
     }
 
     /**
@@ -156,6 +234,12 @@ final class ParsedInvoice implements \JsonSerializable
             'validation_errors' => $this->validationErrors,
             'root_element' => $this->rootElement,
             'namespace' => $this->namespace,
+            'lines' => $this->lines,
+            'line_totals_agree' => $this->lineTotalsAgree(),
+            'payment' => $this->paymentTerms(),
+            'correction' => $this->correction,
+            'service_period_from' => $this->servicePeriodFrom?->format('Y-m-d'),
+            'service_period_to' => $this->servicePeriodTo?->format('Y-m-d'),
         ];
     }
 }

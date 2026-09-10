@@ -198,10 +198,33 @@ final class KsefIngestService
             default => null,
         };
 
+        $fingerprint = \Poland\Purchases\InvoiceFingerprint::of(
+            $metadata->sellerNip ?? $parsed->metadata->sellerNip,
+            $metadata->invoiceNumber ?? $parsed->metadata->invoiceNumber,
+            $invoiceDate,
+            $gross,
+        );
+
         return DB::transaction(function () use (
             $profile, $metadata, $xml, $parsed, $net, $vat, $gross,
-            $invoiceDate, $direction, $missing, $needsReview, $reviewReason
+            $invoiceDate, $direction, $missing, $needsReview, $reviewReason, $fingerprint
         ): KsefDocumentModel {
+            $incoming = $direction === KsefDocumentModel::DIRECTION_INCOMING;
+            $payment = $parsed->paymentTerms();
+
+            // Second duplicate wall: the same supplier/number/date/gross already
+            // stored under ANOTHER KSeF number. Imported and flagged, never
+            // silently dropped and never silently counted twice.
+            $twin = $fingerprint === null ? null : KsefDocumentModel::query()
+                ->where('tax_profile_id', $profile->getKey())
+                ->where('invoice_fingerprint', $fingerprint)
+                ->whereNull('possible_duplicate_of')
+                ->first();
+
+            // A correction → its original, by KSeF number first, then by the
+            // seller's NIP and the invoice number with separators stripped.
+            $original = $this->originalFor($profile, $parsed);
+
             $document = KsefDocumentModel::create([
                 'tax_profile_id' => $profile->getKey(),
                 'ksef_number' => $metadata->ksefNumber,
@@ -210,6 +233,9 @@ final class KsefIngestService
                 'direction' => $direction,
                 'invoice_date' => $invoiceDate?->format('Y-m-d'),
                 'sale_date' => $parsed->saleDate?->format('Y-m-d'),
+                'due_date' => $payment->dueDate?->format('Y-m-d'),
+                'service_period_from' => $parsed->servicePeriodFrom?->format('Y-m-d'),
+                'service_period_to' => $parsed->servicePeriodTo?->format('Y-m-d'),
                 'permanent_storage_date' => $metadata->permanentStorageDate,
                 'retrieved_at' => $metadata->retrievedAt,
                 'seller_nip' => $metadata->sellerNip ?? $parsed->metadata->sellerNip,
@@ -221,6 +247,11 @@ final class KsefIngestService
                 'gross' => $gross?->jsonSerialize(),
                 'currency' => $metadata->currency ?? $parsed->metadata->currency,
                 'ksef_status' => $metadata->status,
+                'payment_form' => $payment->paymentForm,
+                'paid_on_invoice' => $payment->paidOnInvoice,
+                'supplier_account' => $payment->supplierAccount,
+                'payment_terms_json' => $payment->isPresent() ? $payment->raw : null,
+                'source' => 'ksef',
                 'original_xml' => $xml,
                 'xml_checksum' => hash('sha256', $xml),
                 'metadata' => json_decode(json_encode($metadata, JSON_THROW_ON_ERROR), true),
@@ -232,7 +263,48 @@ final class KsefIngestService
                 'processing_status' => $needsReview ? 'needs_review' : 'imported',
                 'needs_review' => $needsReview,
                 'review_reason' => $reviewReason,
+                // Every INCOMING invoice enters review. Outgoing ones (the shop
+                // issued them) are sales documents and stay `imported`.
+                'approval_status' => $incoming
+                    ? \Poland\Purchases\ApprovalStatus::AwaitingReview->value
+                    : \Poland\Purchases\ApprovalStatus::Imported->value,
+                'corrects_document_id' => $original?->getKey(),
+                'invoice_fingerprint' => $fingerprint,
+                'possible_duplicate_of' => $twin?->getKey(),
+                'duplicate_reason' => $twin === null ? null : sprintf(
+                    'Ten sam dostawca, numer faktury, data i kwota brutto co dokument KSeF %s. '
+                    .'Możliwa ponowna emisja tej samej faktury — NIE zaksięgowano.',
+                    $twin->ksef_number,
+                ),
+                'duplicate_decision' => $twin === null ? null : 'pending',
             ]);
+
+            foreach ($parsed->lines as $line) {
+                \Poland\Laravel\Models\PurchaseInvoiceLineModel::create([
+                    'ksef_document_id' => $document->getKey(),
+                    'line_no' => $line->lineNo,
+                    'description' => $line->description,
+                    'supplier_index' => $line->supplierIndex,
+                    'gtin' => $line->gtin,
+                    'pkwiu' => $line->pkwiu,
+                    'quantity' => $line->quantityAsFloat(),
+                    'unit' => $line->unit,
+                    'unit_net_price' => $line->unitNetPrice?->jsonSerialize(),
+                    'net' => $line->net?->jsonSerialize(),
+                    'vat_rate' => $line->vatRate,
+                    'vat' => $line->vat?->jsonSerialize(),
+                    'vat_is_derived' => $line->vatIsDerived,
+                    'gross' => $line->gross?->jsonSerialize(),
+                    'gross_is_derived' => $line->grossIsDerived,
+                    'gtu' => $line->gtu,
+                    'procedure' => $line->procedure,
+                    'raw' => $line->raw,
+                ]);
+            }
+
+            if ($incoming) {
+                $this->rememberSupplier($profile, $document);
+            }
 
             $this->audit->record(
                 AuditRecorder::KSEF_INVOICE_IMPORTED,
@@ -245,14 +317,85 @@ final class KsefIngestService
                     'direction' => $direction,
                     'gross' => $gross?->jsonSerialize(),
                     'needs_review' => $needsReview,
+                    'lines' => count($parsed->lines),
+                    'possible_duplicate_of' => $twin?->ksef_number,
+                    'corrects' => $original?->ksef_number,
                 ],
                 'ok',
                 null,
                 'ksef',
             );
 
+            if ($incoming) {
+                $this->audit->record(
+                    AuditRecorder::KSEF_INVOICE_AWAITING_REVIEW,
+                    (int) $profile->getKey(),
+                    $document,
+                    $document->period,
+                    null,
+                    ['ksef_number' => $metadata->ksefNumber, 'reasons' => array_values(array_filter([$reviewReason, $document->duplicate_reason]))],
+                    'ok',
+                    null,
+                    'ksef',
+                );
+            }
+
             return $document;
         });
+    }
+
+    /** The document a correction corrects, if it is in this system. */
+    private function originalFor(TaxProfileModel $profile, \Poland\Ksef\Parsing\ParsedInvoice $parsed): ?KsefDocumentModel
+    {
+        $reference = $parsed->correction;
+        if ($reference === null || ! $reference->canLinkAutomatically()) {
+            return null;
+        }
+
+        if ($reference->originalKsefNumber !== null) {
+            $byKsef = KsefDocumentModel::query()
+                ->where('tax_profile_id', $profile->getKey())
+                ->where('ksef_number', $reference->originalKsefNumber)
+                ->first();
+            if ($byKsef !== null) {
+                return $byKsef;
+            }
+        }
+
+        if ($reference->originalInvoiceNumber === null || $parsed->metadata->sellerNip === null) {
+            return null;
+        }
+
+        $wanted = \Poland\Purchases\InvoiceFingerprint::normaliseNumber($reference->originalInvoiceNumber);
+        $sellerNip = preg_replace('/\D/', '', $parsed->metadata->sellerNip) ?? '';
+
+        $candidates = KsefDocumentModel::query()
+            ->where('tax_profile_id', $profile->getKey())
+            ->where('direction', KsefDocumentModel::DIRECTION_INCOMING)
+            ->whereNotNull('invoice_number')
+            ->get()
+            ->filter(static fn (KsefDocumentModel $d): bool => (preg_replace('/\D/', '', (string) $d->seller_nip) ?? '') === $sellerNip
+                && \Poland\Purchases\InvoiceFingerprint::normaliseNumber((string) $d->invoice_number) === $wanted);
+
+        return $candidates->count() === 1 ? $candidates->first() : null;
+    }
+
+    private function rememberSupplier(TaxProfileModel $profile, KsefDocumentModel $document): void
+    {
+        $nip = preg_replace('/\D/', '', (string) $document->seller_nip) ?? '';
+        if ($nip === '') {
+            return;
+        }
+
+        $supplier = \Poland\Laravel\Models\SupplierModel::query()->firstOrCreate(
+            ['tax_profile_id' => $profile->getKey(), 'nip' => $nip],
+            ['name' => $document->seller_name, 'first_seen_at' => now(), 'invoice_count' => 0],
+        );
+
+        $supplier->forceFill([
+            'name' => $document->seller_name ?? $supplier->name,
+            'invoice_count' => (int) $supplier->invoice_count + 1,
+        ])->save();
     }
 
     private function alreadyHave(TaxProfileModel $profile, string $ksefNumber): bool

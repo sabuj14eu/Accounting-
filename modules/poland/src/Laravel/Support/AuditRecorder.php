@@ -56,6 +56,28 @@ final class AuditRecorder
 
     public const PERIOD_REOPENED = 'period.reopened';
 
+    public const KSEF_INVOICE_AWAITING_REVIEW = 'ksef.invoice_awaiting_review';
+
+    public const KSEF_INVOICE_APPROVED = 'ksef.invoice_approved';
+
+    public const KSEF_INVOICE_REJECTED = 'ksef.invoice_rejected';
+
+    public const PURCHASE_POSTED = 'purchase.posted';
+
+    public const PRODUCT_CREATED = 'product.created';
+
+    public const PRODUCT_MAPPED = 'product.mapped';
+
+    public const INVENTORY_TRACKING_CHANGED = 'inventory.tracking_changed';
+
+    public const INVENTORY_MOVEMENT_RECORDED = 'inventory.movement_recorded';
+
+    public const INVENTORY_COUNT_RECORDED = 'inventory.count_recorded';
+
+    public const PLATFORM_SETTLEMENT_RECORDED = 'platform.settlement_recorded';
+
+    public const PURCHASE_SUMMARY_SUPERSEDED = 'purchases.summary_superseded';
+
     /**
      * @param array<string,mixed>|null $old
      * @param array<string,mixed>|null $new

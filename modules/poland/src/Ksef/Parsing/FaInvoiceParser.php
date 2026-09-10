@@ -47,7 +47,37 @@ final class FaInvoiceParser
         'gross' => ['P_15'],
         'currency' => ['KodWaluty'],
         'invoice_type' => ['RodzajFaktury'],
+        'service_period_from' => ['OkresFa/P_6_Od'],
+        'service_period_to' => ['OkresFa/P_6_Do'],
     ];
+
+    /**
+     * Local names inside `FaWiersz` (FA(2)/FA(3) spellings). Read by local
+     * name like everything else here; a spelling this list does not know
+     * surfaces in {@see ParsedInvoice::$unknownElements}.
+     */
+    private const LINE_FIELDS = [
+        'line_no' => 'NrWierszaFa',
+        'description' => 'P_7',
+        'supplier_index' => 'Indeks',
+        'gtin' => 'GTIN',
+        'pkwiu' => 'PKWiU',
+        'unit' => 'P_8A',
+        'quantity' => 'P_8B',
+        'unit_net_price' => 'P_9A',
+        'net' => 'P_11',
+        'gross' => 'P_11A',
+        'vat' => 'P_11Vat',
+        'vat_rate' => 'P_12',
+        'gtu' => 'GTU',
+        'procedure' => 'Procedura',
+    ];
+
+    private const PAYMENT_FIELDS = ['Zaplacono', 'DataZaplaty', 'FormaPlatnosci', 'TerminPlatnosci', 'Termin',
+        'RachunekBankowy', 'NrRB', 'Platnosc'];
+
+    private const CORRECTION_FIELDS = ['DaneFaKorygowanej', 'DataWystFaKorygowanej', 'NrFaKorygowanej',
+        'NrKSeF', 'NrKSeFFaKorygowanej', 'PrzyczynaKorekty', 'TypKorekty', 'NrKSeFN'];
 
     /**
      * Net and VAT totals are split across rate-specific elements. Pairs of
@@ -113,6 +143,10 @@ final class FaInvoiceParser
         $buyerName = $value('buyer_name');
         $currency = $value('currency');
         $invoiceType = $value('invoice_type');
+        $servicePeriodFrom = $this->date($this->firstByLocalPath($xpath, 'OkresFa/P_6_Od'));
+        $servicePeriodTo = $this->date($this->firstByLocalPath($xpath, 'OkresFa/P_6_Do'));
+        // Period fields are optional by nature; do not report them missing.
+        $missing = array_values(array_diff($missing, ['service_period_from', 'service_period_to']));
 
         [$net, $vat, $byRate] = $this->totals($xpath);
         $gross = $this->money($value('gross'));
@@ -159,6 +193,150 @@ final class FaInvoiceParser
             rootElement: $document->documentElement?->localName ?? 'unknown',
             namespace: $document->documentElement?->namespaceURI,
             unknownElements: $this->unknownElements($xpath),
+            lines: $this->lines($xpath),
+            payment: $this->payment($xpath),
+            correction: $this->correction($xpath, $invoiceType),
+            servicePeriodFrom: $servicePeriodFrom,
+            servicePeriodTo: $servicePeriodTo,
+        );
+    }
+
+    /** @return list<InvoiceLine> */
+    private function lines(DOMXPath $xpath): array
+    {
+        $rows = $xpath->query('//*[local-name()="FaWiersz"]');
+        if ($rows === false || $rows->length === 0) {
+            return [];
+        }
+
+        $lines = [];
+        $position = 0;
+        foreach ($rows as $row) {
+            $position++;
+            $raw = [];
+            $get = static function (string $name) use ($row, &$raw): ?string {
+                foreach ($row->childNodes as $child) {
+                    if ($child instanceof \DOMElement && $child->localName === $name) {
+                        $text = trim((string) $child->textContent);
+                        $raw[$name] = $text;
+
+                        return $text === '' ? null : $text;
+                    }
+                }
+
+                return null;
+            };
+
+            $lineNo = $get(self::LINE_FIELDS['line_no']);
+            $description = $get(self::LINE_FIELDS['description']);
+            $supplierIndex = $get(self::LINE_FIELDS['supplier_index']);
+            $gtin = $get(self::LINE_FIELDS['gtin']);
+            $pkwiu = $get(self::LINE_FIELDS['pkwiu']);
+            $unit = $get(self::LINE_FIELDS['unit']);
+            $quantity = $get(self::LINE_FIELDS['quantity']);
+            $unitNetPrice = $this->money($get(self::LINE_FIELDS['unit_net_price']));
+            $net = $this->money($get(self::LINE_FIELDS['net']));
+            $grossStated = $this->money($get(self::LINE_FIELDS['gross']));
+            $vatStated = $this->money($get(self::LINE_FIELDS['vat']));
+            $vatRate = $get(self::LINE_FIELDS['vat_rate']);
+            $gtu = $get(self::LINE_FIELDS['gtu']);
+            $procedure = $get(self::LINE_FIELDS['procedure']);
+
+            // Anything else on the row is kept, so a future schema field is
+            // visible rather than lost.
+            foreach ($row->childNodes as $child) {
+                if ($child instanceof \DOMElement && ! array_key_exists($child->localName, $raw)) {
+                    $raw[$child->localName] = trim((string) $child->textContent);
+                }
+            }
+
+            $vat = $vatStated;
+            $vatIsDerived = false;
+            if ($vat === null && $net !== null && $vatRate !== null) {
+                $vat = InvoiceLine::deriveVat($net, $vatRate);
+                $vatIsDerived = $vat !== null;
+            }
+
+            $gross = $grossStated;
+            $grossIsDerived = false;
+            if ($gross === null && $net !== null && $vat !== null) {
+                $gross = $net->plus($vat);
+                $grossIsDerived = true;
+            }
+
+            $lines[] = new InvoiceLine(
+                lineNo: $lineNo !== null && ctype_digit($lineNo) ? (int) $lineNo : $position,
+                description: $description,
+                quantity: $quantity,
+                unit: $unit,
+                unitNetPrice: $unitNetPrice,
+                net: $net,
+                vatRate: $vatRate,
+                vat: $vat,
+                vatIsDerived: $vatIsDerived,
+                gross: $gross,
+                grossIsDerived: $grossIsDerived,
+                supplierIndex: $supplierIndex,
+                gtin: $gtin,
+                pkwiu: $pkwiu,
+                gtu: $gtu,
+                procedure: $procedure,
+                raw: $raw,
+            );
+        }
+
+        return $lines;
+    }
+
+    private function payment(DOMXPath $xpath): PaymentTerms
+    {
+        $node = $xpath->query('//*[local-name()="Platnosc"]');
+        if ($node === false || $node->length === 0) {
+            return PaymentTerms::none();
+        }
+
+        $raw = [];
+        $leaves = $xpath->query('.//*[not(*)]', $node->item(0));
+        foreach ($leaves ?? [] as $leaf) {
+            $raw[$leaf->localName] = trim((string) $leaf->textContent);
+        }
+
+        $paid = $this->firstByLocalPath($xpath, 'Platnosc/Zaplacono');
+        $paidOnInvoice = match ($paid) {
+            null, '' => null,
+            '1', 'true' => true,
+            default => false,
+        };
+
+        return new PaymentTerms(
+            dueDate: $this->date($this->firstByLocalPath($xpath, 'Platnosc/TerminPlatnosci/Termin')),
+            paymentForm: $this->firstByLocalPath($xpath, 'Platnosc/FormaPlatnosci'),
+            paidOnInvoice: $paidOnInvoice,
+            paymentDate: $this->date($this->firstByLocalPath($xpath, 'Platnosc/DataZaplaty')),
+            supplierAccount: $this->firstByLocalPath($xpath, 'Platnosc/RachunekBankowy/NrRB'),
+            raw: $raw,
+        );
+    }
+
+    private function correction(DOMXPath $xpath, ?string $invoiceType): ?CorrectionReference
+    {
+        $node = $xpath->query('//*[local-name()="DaneFaKorygowanej"]');
+        $isKor = $invoiceType !== null && str_contains(strtoupper($invoiceType), 'KOR');
+
+        if (($node === false || $node->length === 0) && ! $isKor) {
+            return null;
+        }
+
+        // `NrKSeF` inside DaneFaKorygowanej is a FLAG (1 = the original was in
+        // KSeF), not a number. Only NrKSeFFaKorygowanej carries the number.
+        $ksef = $this->firstByLocalPath($xpath, 'DaneFaKorygowanej/NrKSeFFaKorygowanej');
+
+        return new CorrectionReference(
+            originalKsefNumber: $ksef,
+            originalInvoiceNumber: $this->firstByLocalPath($xpath, 'DaneFaKorygowanej/NrFaKorygowanej'),
+            originalInvoiceDate: $this->date($this->firstByLocalPath($xpath, 'DaneFaKorygowanej/DataWystFaKorygowanej')),
+            reason: $this->firstByLocalPath($xpath, 'PrzyczynaKorekty'),
+            type: $this->firstByLocalPath($xpath, 'TypKorekty'),
         );
     }
 
@@ -187,6 +365,12 @@ final class FaInvoiceParser
             if ($vat !== null) {
                 $known[$vat] = true;
             }
+        }
+        foreach (self::LINE_FIELDS as $name) {
+            $known[$name] = true;
+        }
+        foreach (array_merge(self::PAYMENT_FIELDS, self::CORRECTION_FIELDS, ['FaWiersz', 'P_6_Od', 'P_6_Do']) as $name) {
+            $known[$name] = true;
         }
 
         $unknown = [];

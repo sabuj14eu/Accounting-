@@ -67,10 +67,17 @@
         .basis { color:var(--muted); font-size:.78rem; }
         .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
         details summary { cursor:pointer; color:var(--muted); font-size:.9rem; }
+        .nav { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 18px; }
+        .nav a { text-decoration:none; padding:6px 12px; border:1px solid var(--line); border-radius:99px;
+                 font-size:.86rem; background:var(--card); }
+        .nav a.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+        .nav .count { display:inline-block; min-width:1.4em; padding:0 6px; margin-left:6px; border-radius:99px;
+                      background:var(--pay); color:#fff; font-size:.74rem; text-align:center; }
     </style>
 </head>
 <body>
 <div class="wrap">
+@include('poland::partials.nav', ['active' => 'dashboard', 'profile' => $profile])
 
     <h1>Co muszę zapłacić — {{ $period->label() }}</h1>
     <p class="sub">
@@ -226,6 +233,22 @@
         @foreach ($r->report->warnings as $warning)
             <div class="warn">{{ $warning }}</div>
         @endforeach
+
+        {{-- Sales by channel: shop register vs platforms. Monthly, split, never summed silently. --}}
+        @php $salesRow = $recorded->firstWhere('period', $period->toString()); @endphp
+        @if ($salesRow)
+            <div class="card">
+                <h2>Sprzedaż {{ $period->label() }} wg kanału</h2>
+                <table>
+                    <tbody>
+                    @foreach ($salesRow->toDomain()->grossByChannel() as $channel => $gross)
+                        <tr><td>{{ \Poland\Domain\SalesChannel::label($channel) }}</td><td class="num">{{ $gross->format() }}</td></tr>
+                    @endforeach
+                    <tr><td><strong>Razem brutto</strong></td><td class="num"><strong>{{ $salesRow->toDomain()->grossTotal()->format() }}</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        @endif
     @endif
 
     {{-- Integration status: what is actually connected, stated so an empty

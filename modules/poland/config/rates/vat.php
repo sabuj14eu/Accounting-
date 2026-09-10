@@ -99,4 +99,15 @@ return [
 
     'jpk_due_day_of_following_month' => 25,
     'payment_due_day_of_following_month' => 25,
+
+    /**
+     * How long after the period in which the right to deduct arose the buyer
+     * may still deduct input VAT (ustawa o VAT, art. 86 ust. 11): three
+     * following periods for a monthly filer, two for a quarterly one. The right
+     * itself arises no earlier than receipt of the invoice (art. 86 ust. 10b);
+     * for a KSeF invoice the date of receipt is the date its KSeF number was
+     * assigned. Thresholds, so they live here and not in a calculator.
+     */
+    'input_vat_deduction_following_periods' => 3,
+    'input_vat_deduction_following_periods_quarterly' => 2,
 ];

@@ -51,6 +51,7 @@ class SalesReportModel extends Model
             Money::parse((string) $line->gross),
             $line->lump_sum_rate !== null ? (float) $line->lump_sum_rate : null,
             $line->note,
+            (string) ($line->channel ?? \Poland\Domain\SalesChannel::SHOP_REGISTER),
         ))->all();
 
         return FiscalSalesReport::of(

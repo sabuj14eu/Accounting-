@@ -15,7 +15,7 @@ class PurchaseSummaryModel extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['document_count' => 'int'];
+    protected $casts = ['document_count' => 'int', 'superseded_at' => 'datetime'];
 
     public function toDomain(): PurchaseRegister
     {

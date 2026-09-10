@@ -1,5 +1,98 @@
 # Changelog
 
+## 2026-09-10 (second) — Stage B: review inbox, postings, optional inventory, Glovo settlement
+
+Implements stage B of `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` (section 15).
+Needs NO KSeF connection: every path is exercised with the FA fixtures. The
+transport stays `disabled`; the inbox says NOT CONNECTED in as many words.
+
+### Schema
+| Migration | Change |
+|---|---|
+| `2026_09_10_000100` | `pl_ksef_documents`: `due_date`, `service_period_from/to`, `payment_form`, `paid_on_invoice` (nullable — absence is not "unpaid"), `supplier_account`, `payment_terms_json`, `source`, `approval_status` (+index), `approved_by/at`, `decision_note`, `corrects_document_id`, `invoice_fingerprint` (+index), `possible_duplicate_of`, `duplicate_reason`, `duplicate_decision` |
+| `2026_09_10_000200` | new `pl_suppliers`, `pl_products` (`inventory_tracked` default false), `pl_product_aliases` (unique per supplier spelling), `pl_purchase_invoice_lines` (unique per document+line), `pl_purchase_postings` (**unique `ksef_document_id`** — one posting per document, enforced by the database) |
+| `2026_09_10_000300` | new `pl_inventory_movements` (**unique (source_type, source_id, source_line_no)** — one movement per line, ever), `pl_inventory_counts` |
+| `2026_09_10_000400` | new `pl_platform_settlements` (versioned; corrections supersede) |
+| `2026_09_10_000500` | `pl_sales_report_lines`: `channel` (default `shop_register`), `source_type`, `source_id` |
+| `2026_09_10_000600` | `pl_purchase_summaries`: `superseded_at` |
+
+Migration note: all additive and reversible. Existing documents default to
+`approval_status = imported` (they were imported before review existed and are
+not retroactively queued); existing sales lines default to the shop channel.
+Nothing is keyed by day (`test_no_table_or_query_is_keyed_by_day` scans the
+migrations directory).
+
+### Added — framework-free (tested here, 67 new tests)
+- `Ksef\Parsing\InvoiceLine`, `PaymentTerms`, `CorrectionReference`;
+  `FaInvoiceParser` reads `FaWiersz`, `Platnosc`, `DaneFaKorygowanej`, `OkresFa`.
+  Absent VAT on a line is derived and **labelled derived**; an absent quantity
+  stays MISSING_FIELD; lines are checked against the header per rate and a
+  mismatch is visible, never repaired.
+- `Purchases\ApprovalStatus` (state machine — nothing goes backwards from
+  posted except by a correction), `ApprovalGate` / `ApprovalAssessment`,
+  `PostingPlan` (amounts from the header by rate; VAT period never earlier than
+  receipt and never past the statutory window — both from the VAT rate table;
+  stock movements only for tracked lines; a one-sentence `describe()` the
+  owner reads before tapping), `CostCategory` (KPiR columns 10–13),
+  `ProductMapping`, `LineResolution`, `InvoiceFingerprint` (second duplicate
+  wall), `RegisterResolution` (postings vs manual: never summed; both = CONFLICT
+  = no register).
+- `Inventory\StockUnit`, `StockQuantity` (integer thousandths, unit-safe),
+  `MovementType`, `StockMovement`, `StockPosition` (NO_OPENING_COUNT /
+  NOT_COUNTED / COUNTED; consumption only ever implied by a count).
+- `Platforms\Platform`, `VatTreatment` (UNKNOWN records and reconciles but
+  **refuses to post to VAT**), `SettlementStatus`, `PlatformSettlement`
+  (expected payout, difference as a question with innocent explanations, sales
+  lines by rate on the Glovo channel, VAT rows per treatment).
+- `Domain\SalesChannel`; `SalesLine::$channel` (default shop register);
+  `FiscalSalesReport::grossByChannel()`.
+- `config/rates/vat.php`: `input_vat_deduction_following_periods` (3) and
+  `_quarterly` (2) — art. 86 ust. 11, as data.
+- Caveats: `DOCUMENTS_AWAITING_REVIEW`, `PURCHASE_REGISTER_CONFLICT`,
+  `PLATFORM_VAT_TREATMENT_UNKNOWN`, `PLATFORM_PAYOUT_UNRECONCILED`.
+
+### Added — Laravel layer (lints; exercised by the CI integration job, not here)
+- `KsefIngestService::import` now stores lines, payment terms, the fingerprint,
+  the correction link and the supplier; every INCOMING document enters
+  `awaiting_review`; a fingerprint twin is imported, flagged, excluded.
+- `InvoicePostingService` — review (plan + gate), approve (posting + movements +
+  status + audit in ONE transaction), reject (reason required), register from
+  postings. A correction posts as a **signed adjustment** linked to its original
+  (FA correction amounts are differences); the original is never edited.
+- `ProductCatalogService` (aliases, tracking toggle with old→new audit, opening
+  count), `InventoryService` (position, counts with the book quantity stored),
+  `PlatformSettlementService` (versioned record; writes the platform's sales
+  lines ONCE onto the month's report).
+- `SettlementRecorder::recordChannelLines` — one channel's lines replace only
+  that channel; the other channels' lines are carried; a reason is required
+  only when the same channel was already recorded. `supersedePurchaseSummary`
+  resolves a register conflict in favour of postings.
+- `LedgerRepository` resolves each month's purchase register from ONE source
+  via `RegisterResolution`; `conflictsFor()` feeds the month close, which gains
+  a `purchases` step (awaiting-review count, conflicts, platform caveats).
+- Screens: `/poland/skrzynka` (inbox), `/poland/skrzynka/{id}` (what approving
+  will do, approve/reject/map/duplicate), `/poland/produkty`, `/poland/platformy`;
+  a navigation bar on all module pages with the inbox count; the dashboard
+  shows the month's sales by channel.
+- Audit actions: `ksef.invoice_awaiting_review`, `ksef.invoice_approved`,
+  `ksef.invoice_rejected`, `purchase.posted`, `product.created`,
+  `product.mapped`, `inventory.tracking_changed`, `inventory.movement_recorded`,
+  `inventory.count_recorded`, `platform.settlement_recorded`,
+  `purchases.summary_superseded`.
+
+### Verified
+- 376 tests, 1155 assertions, 0 failures on PHP 8.4.19 (was 309 / 874).
+- `bin/check-isolation.sh` clean. Every PHP file lints.
+- NOT verified here: the Laravel layer against a database (needs PHP 8.5 and
+  the foundation — the `laravel-integration` CI job). Blade views were checked
+  for balanced directives only.
+
+### Known
+- KSeF transport still `disabled` (stage C). Glovo statement importer not
+  built (stage D) — the month is typed. JPK preparation not built (stage E).
+  Trusted-supplier auto-approval not built (stage F).
+- Foundation hardening (design section 14.3–14.5) is server work, not done.
+
 ## 2026-09-10 — direction change: automatic invoices, optional inventory, monthly sales (design only)
 
 No code, schema, route, view or configuration changed. One document added.

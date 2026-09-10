@@ -7,6 +7,8 @@ namespace Poland\Laravel\Support;
 use Illuminate\Support\Facades\DB;
 use Poland\Domain\Money;
 use Poland\Domain\Period;
+use Poland\Domain\SalesChannel;
+use Poland\Domain\SalesLine;
 use Poland\Laravel\Models\SalesReportModel;
 use Poland\Laravel\Models\SettlementModel;
 use Poland\Laravel\Models\TaxProfileModel;
@@ -38,7 +40,7 @@ final class SettlementRecorder
     }
 
     /**
-     * Record a month's takings from the fiscal cash register.
+     * Record a month's takings from the fiscal cash register (the shop channel).
      *
      * @param array<string,Money|string> $grossByDesignation
      */
@@ -50,42 +52,108 @@ final class SettlementRecorder
         ?string $reportNumber = null,
         ?string $correctionReason = null,
     ): SalesReportModel {
+        $lines = [];
+        foreach ($grossByDesignation as $designation => $amount) {
+            $lines[] = new SalesLine(
+                (string) $designation,
+                $amount instanceof Money ? $amount : Money::parse($amount),
+                null,
+                null,
+                SalesChannel::SHOP_REGISTER,
+            );
+        }
+
+        return $this->recordChannelLines($profile, $period, $lines, $correctionReason, null, null, $registerId, $reportNumber);
+    }
+
+    /**
+     * Replace ONE channel's lines of a month's sales report, keeping every
+     * other channel's lines as they are.
+     *
+     * The month stays one report (the unique index still forbids two Augusts);
+     * the change is a correction that supersedes the previous report and needs
+     * a reason whenever the same channel was already recorded. Recording Glovo
+     * after the shop figure (or the reverse) is not a correction of anything
+     * and needs none.
+     *
+     * @param list<SalesLine> $lines all on the same channel
+     */
+    public function recordChannelLines(
+        TaxProfileModel $profile,
+        Period $period,
+        array $lines,
+        ?string $correctionReason = null,
+        ?string $sourceType = null,
+        ?int $sourceId = null,
+        ?string $registerId = null,
+        ?string $reportNumber = null,
+    ): SalesReportModel {
+        if ($lines === []) {
+            throw new RuntimeException('Raport sprzedaży musi zawierać co najmniej jedną pozycję.');
+        }
+
+        $channels = array_unique(array_map(static fn (SalesLine $l): string => $l->channel, $lines));
+        if (count($channels) !== 1) {
+            throw new RuntimeException('Jeden zapis dotyczy jednego kanału sprzedaży.');
+        }
+        $channel = $channels[0];
+
         return DB::transaction(function () use (
-            $profile, $period, $grossByDesignation, $registerId, $reportNumber, $correctionReason
+            $profile, $period, $lines, $channel, $correctionReason, $sourceType, $sourceId, $registerId, $reportNumber
         ): SalesReportModel {
             $existing = SalesReportModel::query()
                 ->where('tax_profile_id', $profile->getKey())
                 ->where('period', $period->toString())
                 ->inForce()
+                ->with('lines')
                 ->first();
 
-            if ($existing !== null && $correctionReason === null) {
+            $carried = [];
+            $sameChannelBefore = false;
+            if ($existing !== null) {
+                foreach ($existing->lines as $row) {
+                    $rowChannel = (string) ($row->channel ?? SalesChannel::SHOP_REGISTER);
+                    if ($rowChannel === $channel) {
+                        $sameChannelBefore = true;
+
+                        continue;
+                    }
+                    $carried[] = [
+                        'line' => new SalesLine(
+                            (string) $row->designation,
+                            Money::parse((string) $row->gross),
+                            $row->lump_sum_rate !== null ? (float) $row->lump_sum_rate : null,
+                            $row->note,
+                            $rowChannel,
+                        ),
+                        'source_type' => $row->source_type,
+                        'source_id' => $row->source_id,
+                    ];
+                }
+            }
+
+            if ($sameChannelBefore && ($correctionReason === null || trim($correctionReason) === '')) {
                 throw new RuntimeException(sprintf(
-                    'Sprzedaż za %s została już zapisana (%s). Zmiana wymaga podania przyczyny '
+                    'Sprzedaż (%s) za %s została już zapisana (%s). Zmiana wymaga podania przyczyny '
                     .'korekty — poprzedni raport zostanie zachowany, nie nadpisany.',
+                    SalesChannel::label($channel),
                     $period->toString(),
                     Money::parse((string) $existing->gross_total)->format(),
                 ));
             }
 
-            $lines = [];
+            $all = array_merge(
+                $carried,
+                array_map(static fn (SalesLine $l): array => ['line' => $l, 'source_type' => $sourceType, 'source_id' => $sourceId], $lines),
+            );
+
             $gross = Money::zero();
             $net = Money::zero();
             $vat = Money::zero();
-
-            foreach ($grossByDesignation as $designation => $amount) {
-                $line = new \Poland\Domain\SalesLine(
-                    (string) $designation,
-                    $amount instanceof Money ? $amount : Money::parse($amount),
-                );
-                $lines[] = $line;
-                $gross = $gross->plus($line->gross);
-                $net = $net->plus($line->net());
-                $vat = $vat->plus($line->vat());
-            }
-
-            if ($lines === []) {
-                throw new RuntimeException('Raport sprzedaży musi zawierać co najmniej jedną pozycję.');
+            foreach ($all as $entry) {
+                $gross = $gross->plus($entry['line']->gross);
+                $net = $net->plus($entry['line']->net());
+                $vat = $vat->plus($entry['line']->vat());
             }
 
             // Supersede BEFORE inserting. The unique index on
@@ -99,23 +167,28 @@ final class SettlementRecorder
             $report = SalesReportModel::create([
                 'tax_profile_id' => $profile->getKey(),
                 'period' => $period->toString(),
-                'register_id' => $registerId,
-                'report_number' => $reportNumber,
+                'register_id' => $registerId ?? $existing?->register_id,
+                'report_number' => $reportNumber ?? $existing?->report_number,
                 'gross_total' => $gross->jsonSerialize(),
                 'net_total' => $net->jsonSerialize(),
                 'vat_total' => $vat->jsonSerialize(),
                 'status' => SalesReportModel::STATUS_RECORDED,
-                'correction_reason' => $correctionReason,
+                'correction_reason' => $sameChannelBefore ? $correctionReason : ($existing !== null ? 'Dopisano kanał: '.SalesChannel::label($channel) : null),
             ]);
 
-            foreach ($lines as $line) {
+            foreach ($all as $entry) {
+                /** @var SalesLine $line */
+                $line = $entry['line'];
                 $report->lines()->create([
                     'designation' => $line->designation,
+                    'channel' => $line->channel,
                     'gross' => $line->gross->jsonSerialize(),
                     'net' => $line->net()->jsonSerialize(),
                     'vat' => $line->vat()->jsonSerialize(),
                     'lump_sum_rate' => $line->lumpSumRate,
                     'note' => $line->note,
+                    'source_type' => $entry['source_type'],
+                    'source_id' => $entry['source_id'],
                 ]);
             }
 
@@ -124,16 +197,54 @@ final class SettlementRecorder
             }
 
             $this->audit->record(
-                $existing !== null ? AuditRecorder::SALES_CORRECTED : AuditRecorder::SALES_RECORDED,
+                $sameChannelBefore ? AuditRecorder::SALES_CORRECTED : AuditRecorder::SALES_RECORDED,
                 (int) $profile->getKey(),
                 $report,
                 $period->toString(),
                 $existing !== null ? ['gross_total' => $existing->gross_total] : null,
-                ['gross_total' => $gross->jsonSerialize(), 'reason' => $correctionReason],
+                [
+                    'gross_total' => $gross->jsonSerialize(),
+                    'channel' => $channel,
+                    'channel_gross' => Money::sum(array_map(static fn (SalesLine $l): Money => $l->gross, $lines))->jsonSerialize(),
+                    'reason' => $correctionReason,
+                ],
             );
 
             return $report;
         });
+    }
+
+    /**
+     * Mark the manual monthly purchase total as superseded by posted invoices.
+     *
+     * The two sources are never summed; this is how the owner resolves the
+     * conflict in favour of the postings. The row stays, with the note.
+     */
+    public function supersedePurchaseSummary(TaxProfileModel $profile, Period $period, string $actor): void
+    {
+        $summary = \Poland\Laravel\Models\PurchaseSummaryModel::query()
+            ->where('tax_profile_id', $profile->getKey())
+            ->where('period', $period->toString())
+            ->first();
+
+        if ($summary === null) {
+            return;
+        }
+
+        $old = ['costs_net' => $summary->deductible_costs_net, 'input_vat' => $summary->deductible_input_vat, 'note' => $summary->note];
+        $summary->forceFill([
+            'note' => trim('[ZASTĄPIONE przez zaksięgowane faktury — '.$actor.', '.now()->format('Y-m-d').'] '.(string) $summary->note),
+            'superseded_at' => now(),
+        ])->save();
+
+        $this->audit->record(
+            AuditRecorder::PURCHASE_SUMMARY_SUPERSEDED,
+            (int) $profile->getKey(),
+            $summary,
+            $period->toString(),
+            $old,
+            ['superseded_by' => 'postings', 'by' => $actor],
+        );
     }
 
     /** Record the month's deductible costs and input VAT. */

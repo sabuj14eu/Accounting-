@@ -39,6 +39,9 @@ final class MonthCloseService
         private readonly MonthlyReportService $reports,
         private readonly TransactionMatcher $matcher,
         private readonly AuditRecorder $audit,
+        private readonly ?InvoicePostingService $postings = null,
+        private readonly ?LedgerRepository $ledgers = null,
+        private readonly ?PlatformSettlementService $platforms = null,
     ) {
     }
 
@@ -168,6 +171,31 @@ final class MonthCloseService
                 count($classifications) - count($needsReview),
                 count($needsReview),
             );
+        });
+
+        // 4b. Purchases awaiting review, register conflicts, platform months ----
+        $steps[] = $this->step('purchases', function () use ($profile, $period, &$caveats): string {
+            $notes = [];
+
+            $awaiting = $this->postings?->awaitingReviewCount($profile, $period) ?? 0;
+            if ($awaiting > 0) {
+                $caveats[] = Caveat::documentsAwaitingReview($awaiting, $period->label());
+                $notes[] = sprintf('%d faktur do przeglądu', $awaiting);
+            }
+
+            foreach ($this->ledgers?->conflictsFor($profile, $period) ?? [] as $conflict) {
+                if ($conflict->period->equals($period)) {
+                    $caveats[] = Caveat::purchaseRegisterConflict($conflict->reason);
+                    $notes[] = 'konflikt źródeł rejestru zakupów';
+                }
+            }
+
+            foreach ($this->platforms?->caveatsFor($profile, $period) ?? [] as $caveat) {
+                $caveats[] = $caveat;
+                $notes[] = $caveat->code;
+            }
+
+            return $notes === [] ? 'bez uwag' : implode(', ', $notes);
         });
 
         // 5-8. Recalculate and generate ---------------------------------------

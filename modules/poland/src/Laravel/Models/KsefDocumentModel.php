@@ -35,6 +35,12 @@ class KsefDocumentModel extends Model
         'parse_result' => 'array',
         'missing_fields' => 'array',
         'needs_review' => 'bool',
+        'due_date' => 'date',
+        'service_period_from' => 'date',
+        'service_period_to' => 'date',
+        'paid_on_invoice' => 'bool',
+        'payment_terms_json' => 'array',
+        'approved_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -57,6 +63,51 @@ class KsefDocumentModel extends Model
     public function scopeNeedingReview(Builder $query): Builder
     {
         return $query->where('needs_review', true);
+    }
+
+    /** Incoming invoices a person has not decided on yet. */
+    public function scopeAwaitingReview(Builder $query): Builder
+    {
+        return $query->where('approval_status', \Poland\Purchases\ApprovalStatus::AwaitingReview->value);
+    }
+
+    public function scopePosted(Builder $query): Builder
+    {
+        return $query->where('approval_status', \Poland\Purchases\ApprovalStatus::Posted->value);
+    }
+
+    public function approvalStatus(): \Poland\Purchases\ApprovalStatus
+    {
+        return \Poland\Purchases\ApprovalStatus::tryFrom((string) $this->approval_status)
+            ?? \Poland\Purchases\ApprovalStatus::Imported;
+    }
+
+    public function lines()
+    {
+        return $this->hasMany(PurchaseInvoiceLineModel::class, 'ksef_document_id')->orderBy('line_no');
+    }
+
+    public function posting()
+    {
+        return $this->hasOne(PurchasePostingModel::class, 'ksef_document_id');
+    }
+
+    public function correctedDocument()
+    {
+        return $this->belongsTo(self::class, 'corrects_document_id');
+    }
+
+    public function hasUndecidedDuplicate(): bool
+    {
+        return $this->possible_duplicate_of !== null && ($this->duplicate_decision ?? 'pending') === 'pending';
+    }
+
+    /** For the buyer, receipt is the moment KSeF assigned the number; failing that, when we fetched it. */
+    public function receivedAt(): \DateTimeImmutable
+    {
+        $at = $this->permanent_storage_date ?? $this->retrieved_at;
+
+        return \DateTimeImmutable::createFromInterface($at);
     }
 
     public function netMoney(): ?Money

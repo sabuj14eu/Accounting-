@@ -53,7 +53,34 @@ final class PolandServiceProvider extends ServiceProvider
         $this->app->singleton(\Poland\Contracts\SchemaRegistry::class, fn (): \Poland\Contracts\SchemaRegistry => new \Poland\Contracts\SchemaRegistry());
 
         $this->app->singleton(AuditRecorder::class);
-        $this->app->singleton(LedgerRepository::class);
+
+        // Stage B: products, review/posting, inventory, platform settlements.
+        $this->app->singleton(
+            \Poland\Laravel\Support\ProductCatalogService::class,
+            fn ($app): \Poland\Laravel\Support\ProductCatalogService
+                => new \Poland\Laravel\Support\ProductCatalogService($app->make(AuditRecorder::class)),
+        );
+        $this->app->singleton(
+            \Poland\Laravel\Support\InvoicePostingService::class,
+            fn ($app): \Poland\Laravel\Support\InvoicePostingService
+                => new \Poland\Laravel\Support\InvoicePostingService(
+                    $app->make(\Poland\Ksef\Parsing\FaInvoiceParser::class),
+                    $app->make(\Poland\Laravel\Support\ProductCatalogService::class),
+                    $app->make(RateRepository::class),
+                    $app->make(AuditRecorder::class),
+                ),
+        );
+        $this->app->singleton(
+            \Poland\Laravel\Support\InventoryService::class,
+            fn ($app): \Poland\Laravel\Support\InventoryService
+                => new \Poland\Laravel\Support\InventoryService($app->make(AuditRecorder::class)),
+        );
+
+        // The ledger now resolves each month's purchase register from ONE
+        // source (posted invoices or the manual total, never both).
+        $this->app->singleton(LedgerRepository::class, fn ($app): LedgerRepository => new LedgerRepository(
+            $app->make(\Poland\Laravel\Support\InvoicePostingService::class),
+        ));
 
         $this->app->singleton(SettlementRecorder::class, fn ($app): SettlementRecorder => new SettlementRecorder(
             $app->make(SettlementEngine::class),
@@ -82,6 +109,9 @@ final class PolandServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(\Poland\Ksef\Parsing\FaInvoiceParser::class);
+        // FaInvoiceParser must be resolvable before InvoicePostingService; the
+        // singleton above registers it lazily, so order of these lines is not
+        // load-bearing — the container resolves on first use.
         $this->app->singleton(\Poland\Government\DocumentClassifier::class);
 
         $this->app->singleton(
@@ -120,6 +150,15 @@ final class PolandServiceProvider extends ServiceProvider
                 ),
         );
 
+        $this->app->singleton(
+            \Poland\Laravel\Support\PlatformSettlementService::class,
+            fn ($app): \Poland\Laravel\Support\PlatformSettlementService
+                => new \Poland\Laravel\Support\PlatformSettlementService(
+                    $app->make(SettlementRecorder::class),
+                    $app->make(AuditRecorder::class),
+                ),
+        );
+
         $this->app->singleton(MonthlyReportService::class, fn ($app): MonthlyReportService => new MonthlyReportService(
             $app->make(\Poland\Reporting\AccountantReportBuilder::class),
             $app->make(SettlementRecorder::class),
@@ -136,6 +175,9 @@ final class PolandServiceProvider extends ServiceProvider
                     $app->make(MonthlyReportService::class),
                     $app->make(\Poland\Reconciliation\TransactionMatcher::class),
                     $app->make(AuditRecorder::class),
+                    $app->make(\Poland\Laravel\Support\InvoicePostingService::class),
+                    $app->make(LedgerRepository::class),
+                    $app->make(\Poland\Laravel\Support\PlatformSettlementService::class),
                 ),
         );
     }

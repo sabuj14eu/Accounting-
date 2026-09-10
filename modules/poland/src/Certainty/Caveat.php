@@ -44,6 +44,14 @@ final class Caveat implements \JsonSerializable
 
     public const INTEGRATION_DISABLED = 'INTEGRATION_DISABLED';
 
+    public const DOCUMENTS_AWAITING_REVIEW = 'DOCUMENTS_AWAITING_REVIEW';
+
+    public const PURCHASE_REGISTER_CONFLICT = 'PURCHASE_REGISTER_CONFLICT';
+
+    public const PLATFORM_VAT_TREATMENT_UNKNOWN = 'PLATFORM_VAT_TREATMENT_UNKNOWN';
+
+    public const PLATFORM_PAYOUT_UNRECONCILED = 'PLATFORM_PAYOUT_UNRECONCILED';
+
     public function __construct(
         public readonly string $code,
         public readonly DataCertainty $certainty,
@@ -209,6 +217,63 @@ final class Caveat implements \JsonSerializable
             'Wynik silnika księgowego różni się od interpretacji dokumentu ('.$subject.'). '
             .'Źródłem prawdy jest silnik — rozbieżność wymaga decyzji człowieka.',
             'Porównaj wyliczenie z dokumentem i rozstrzygnij ręcznie.',
+            ResolvedBy::User,
+        );
+    }
+
+    /** Invoices arrived and nobody has approved them; the registers do not include them. */
+    public static function documentsAwaitingReview(int $count, string $period): self
+    {
+        return new self(
+            self::DOCUMENTS_AWAITING_REVIEW,
+            DataCertainty::RequiresReview,
+            sprintf(
+                '%d faktur za %s czeka na przegląd i NIE wchodzi do rejestru zakupów ani do VAT naliczonego. '
+                .'Koszty i VAT do odliczenia są zaniżone, dopóki nie zostaną zatwierdzone.',
+                $count,
+                $period,
+            ),
+            'Otwórz skrzynkę faktur i zatwierdź lub odrzuć każdą pozycję.',
+            ResolvedBy::User,
+        );
+    }
+
+    /** Two sources for one month's purchases. They are not summed; the month has no register until decided. */
+    public static function purchaseRegisterConflict(string $reason): self
+    {
+        return new self(
+            self::PURCHASE_REGISTER_CONFLICT,
+            DataCertainty::RequiresReview,
+            $reason,
+            'Oznacz ręczną sumę miesięczną jako zastąpioną przez zaksięgowane faktury (lub odwrotnie).',
+            ResolvedBy::User,
+        );
+    }
+
+    /** A platform month is recorded but cannot enter VAT until the treatment is decided. */
+    public static function platformVatTreatmentUnknown(string $platform, string $period): self
+    {
+        return new self(
+            self::PLATFORM_VAT_TREATMENT_UNKNOWN,
+            DataCertainty::Blocked,
+            sprintf(
+                'Rozliczenie %s za %s ma NIEUSTALONE traktowanie VAT prowizji — nie wchodzi do deklaracji. '
+                .'Zależy od tego, kto i skąd wystawia fakturę za prowizję.',
+                $platform,
+                $period,
+            ),
+            'Potwierdź z księgowym: faktura krajowa czy import usług. Zapisz decyzję w rozliczeniu.',
+            ResolvedBy::Accountant,
+        );
+    }
+
+    public static function platformPayoutUnreconciled(string $platform, string $period, string $status): self
+    {
+        return new self(
+            self::PLATFORM_PAYOUT_UNRECONCILED,
+            DataCertainty::RequiresReview,
+            sprintf('Wypłata %s za %s: %s. Różnica jest pytaniem, nie wnioskiem.', $platform, $period, $status),
+            'Porównaj zestawienie platformy z wyciągiem i zapisz, co wyjaśnia różnicę.',
             ResolvedBy::User,
         );
     }

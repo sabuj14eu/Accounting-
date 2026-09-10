@@ -98,6 +98,32 @@ final class FiscalSalesReport implements \JsonSerializable
         return new self($period, $lines, $registerId);
     }
 
+    /**
+     * Takings per channel (shop register, Glovo, ...), gross.
+     *
+     * The month is one figure for tax; the split is what the owner recognises
+     * and what the JPK document type depends on, so it is never lost.
+     *
+     * @return array<string,Money>
+     */
+    public function grossByChannel(): array
+    {
+        $byChannel = [];
+        foreach ($this->lines as $line) {
+            $byChannel[$line->channel] = isset($byChannel[$line->channel])
+                ? $byChannel[$line->channel]->plus($line->gross)
+                : $line->gross;
+        }
+
+        return $byChannel;
+    }
+
+    /** @return list<SalesLine> */
+    public function linesFor(string $channel): array
+    {
+        return array_values(array_filter($this->lines, static fn (SalesLine $l): bool => $l->channel === $channel));
+    }
+
     public function grossTotal(): Money
     {
         return Money::sum(array_map(fn (SalesLine $l): Money => $l->gross, $this->lines));
@@ -165,6 +191,7 @@ final class FiscalSalesReport implements \JsonSerializable
             'gross_total' => $this->grossTotal(),
             'net_total' => $this->netTotal(),
             'vat_total' => $this->vatTotal(),
+            'gross_by_channel' => $this->grossByChannel(),
             'note' => $this->note,
         ];
     }

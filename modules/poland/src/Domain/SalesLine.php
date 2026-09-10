@@ -22,7 +22,20 @@ final class SalesLine implements \JsonSerializable
         /** Ryczałt rate for this stream; null falls back to the profile default. */
         public readonly ?float $lumpSumRate = null,
         public readonly ?string $note = null,
+        /**
+         * Where the takings came in: the shop's fiscal register, a delivery
+         * platform, or an invoice the shop issued. Sales stay MONTHLY; the
+         * channel only splits the month, it never creates a finer grain.
+         */
+        public readonly string $channel = SalesChannel::SHOP_REGISTER,
     ) {
+        if (! SalesChannel::isKnown($channel)) {
+            throw new InvalidArgumentException(sprintf(
+                'Unknown sales channel "%s". Use one of: %s.',
+                $channel,
+                implode(', ', SalesChannel::all()),
+            ));
+        }
         if ($gross->isNegative()) {
             throw new InvalidArgumentException(
                 'Sales takings cannot be negative. A refund or correction belongs in a '
@@ -87,6 +100,7 @@ final class SalesLine implements \JsonSerializable
             'vat' => $this->vat(),
             'lump_sum_rate' => $this->lumpSumRate,
             'note' => $this->note,
+            'channel' => $this->channel,
         ];
     }
 }

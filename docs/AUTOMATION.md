@@ -25,6 +25,10 @@ Government PDFs ──┘                                             Payment ch
 | OCR / text extraction | **NOT built.** No toolchain available; the port refuses |
 | Certainty states and caveats | **Built, tested** |
 | Month close, ten steps | **Built, executed end to end** |
+| FA line items, payment terms, correction reference | **Built, tested** (stage B) |
+| Review inbox → approval → posting + optional stock, one transaction | **Built, unit-tested; Laravel layer not yet executed against a database** (stage B) |
+| Optional per-product inventory (counts, implied consumption) | **Built, unit-tested** (stage B) |
+| Glovo settlement as an accounting source; sales channels | **Built, unit-tested** (stage B) |
 
 ## Everything that cannot be done, refuses
 

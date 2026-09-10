@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2023/06/29/12648/">
+  <Naglowek><KodFormularza kodSystemowy="FA (2)">FA</KodFormularza></Naglowek>
+  <Podmiot1><DaneIdentyfikacyjne><NIP>1132316939</NIP><Nazwa>Hurtownia Napojów Sp. z o.o.</Nazwa></DaneIdentyfikacyjne></Podmiot1>
+  <Podmiot2><DaneIdentyfikacyjne><NIP>5260250274</NIP><Nazwa>Kebab u Jana</Nazwa></DaneIdentyfikacyjne></Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-08-20</P_1>
+    <P_2>KOR/2026/08/12</P_2>
+    <P_13_1>-600.00</P_13_1>
+    <P_14_1>-138.00</P_14_1>
+    <P_15>-738.00</P_15>
+    <RodzajFaktury>KOR</RodzajFaktury>
+    <PrzyczynaKorekty>Zwrot 5 kartonów Coca-Cola</PrzyczynaKorekty>
+    <TypKorekty>2</TypKorekty>
+    <DaneFaKorygowanej>
+      <DataWystFaKorygowanej>2026-08-11</DataWystFaKorygowanej>
+      <NrFaKorygowanej>FV/2026/08/417</NrFaKorygowanej>
+      <NrKSeF>1</NrKSeF>
+      <NrKSeFFaKorygowanej>1132316939-20260811-A1B2C3D4E5F6-01</NrKSeFFaKorygowanej>
+    </DaneFaKorygowanej>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa>
+      <P_7>Coca-Cola 0,5 l karton 24 szt</P_7>
+      <P_8A>op</P_8A>
+      <P_8B>-5</P_8B>
+      <P_11>-600.00</P_11>
+      <P_11Vat>-138.00</P_11Vat>
+      <P_12>23</P_12>
+    </FaWiersz>
+  </Fa>
+</Faktura>

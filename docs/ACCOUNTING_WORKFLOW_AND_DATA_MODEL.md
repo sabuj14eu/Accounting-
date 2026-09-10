@@ -1,10 +1,11 @@
 # Accounting workflow and data model — the kebab shop
 
-**Status: DESIGN ONLY. Nothing in this document is implemented.** No route,
-controller, migration, table, screen, KSeF connection or token was added with
-it. It records a **change of direction** decided by the owner on 2026-09-10 and
-the architecture that follows from it. Implementation is a separate, approved
-stage per section 15.
+**Status: design of record; stage B implemented on 2026-09-10** (see
+`docs/CHANGELOG.md`, entry "2026-09-10 (second)"). Stages C–F of section 15
+are not built. No KSeF connection or token exists. This document records the
+**change of direction** decided by the owner on 2026-09-10 and the
+architecture that follows from it; where the implementation refined a
+detail, the section says so (3.3).
 
 This document supersedes the earlier proposal for a mandatory daily-sales
 schema. That proposal is **cancelled** (section 8 of the owner's instruction).
@@ -238,15 +239,18 @@ original was in KSeF, its KSeF number. The design:
 1. Link the KOR to the original by KSeF number first, invoice number + seller
    NIP second. No link found → REQUIRES REVIEW, the owner picks the original or
    confirms there is none in this system.
-2. Approving a KOR posts a **reversal** of the original's posting (and reverses
-   its stock movements) and a **new posting** for the corrected amounts, all in
-   one transaction, in the KOR's own VAT period as the law requires for the
-   buyer (in minus corrections reduce input VAT in the period the KOR is
-   received). Both postings point at each other; the original never changes.
-3. A KOR whose lines cannot be read as full replacement values (some suppliers
-   issue difference-only corrections, `TypKorekty`) is REQUIRES REVIEW with the
-   two readings shown; the owner chooses. The system does not guess which kind
-   it is.
+2. **Implemented (stage B) as a signed adjustment.** In the FA schema a
+   correction's amounts are DIFFERENCES, so approving a KOR posts its own
+   signed posting (negative for an in-minus correction) linked to the original
+   through `adjusts_posting_id`, in the KOR's own VAT period as the law
+   requires for the buyer. Its lines' signed quantities move stock for tracked
+   products. The original posting and document stay exactly as they were;
+   nothing is deleted or edited. This replaces the earlier "reverse and
+   re-post" wording: a difference document does not need the original undone.
+3. A KOR that cannot be linked to an original in this system is REQUIRES
+   REVIEW until the owner picks the original or confirms there is none. A KOR
+   the parser cannot read as signed differences (missing amounts, unknown
+   rate) is blocked by the same gate as any other document.
 
 ### 3.4 Trusted-supplier auto-approval (later, explicit, per supplier)
 
