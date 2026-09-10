@@ -163,5 +163,6 @@ numbers are right, and it should never be treated as if it did.
 
 Development, staging and production get separate databases, separate `.env`
 files and separate credentials. KSeF production credentials are never installed
-anywhere until the full test suite passes against the KSeF test environment
+anywhere until `php artisan poland:ksef-check` passes against the KSeF test
+environment and the result is recorded in `docs/KSEF_GO_LIVE.md`
 (Phase 3, `docs/ROADMAP.md`).

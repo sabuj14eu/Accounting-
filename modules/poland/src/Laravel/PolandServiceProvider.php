@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Poland\Laravel;
 
 use Illuminate\Support\ServiceProvider;
+use Poland\Laravel\Console\KsefCheckCommand;
+use Poland\Laravel\Console\KsefSyncCommand;
+use Poland\Laravel\Console\KsefTokenCommand;
 use Poland\Laravel\Console\RateProvenanceCommand;
 use Poland\Laravel\Console\ReportCommand;
 use Poland\Laravel\Console\VerifyRatesCommand;
@@ -136,11 +139,24 @@ final class PolandServiceProvider extends ServiceProvider
             new \Poland\Banking\Parsing\PdfStatementParser(),
         ]);
 
+        // Stage C: the client is built per taxpayer from config + the stored
+        // credential. The factory is the one call site of revealToken() and
+        // the one reader of the egress registry; it refuses before any request.
+        $this->app->singleton(
+            \Poland\Laravel\Support\KsefClientFactory::class,
+            fn ($app): \Poland\Laravel\Support\KsefClientFactory
+                => new \Poland\Laravel\Support\KsefClientFactory(
+                    (array) config('poland.ksef', []),
+                    (array) config('poland.egress.ksef', []),
+                    $app->make(\Poland\Ksef\Parsing\FaInvoiceParser::class),
+                ),
+        );
+
         $this->app->singleton(
             \Poland\Laravel\Support\KsefIngestService::class,
             fn ($app): \Poland\Laravel\Support\KsefIngestService
                 => new \Poland\Laravel\Support\KsefIngestService(
-                    $app->make(\Poland\Ksef\Contracts\KsefClient::class),
+                    $app->make(\Poland\Laravel\Support\KsefClientFactory::class),
                     $app->make(\Poland\Ksef\Parsing\FaInvoiceParser::class),
                     $app->make(AuditRecorder::class),
                 ),
@@ -199,7 +215,16 @@ final class PolandServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ReportCommand::class, VerifyRatesCommand::class, RateProvenanceCommand::class]);
+            $this->commands([
+                ReportCommand::class,
+                VerifyRatesCommand::class,
+                RateProvenanceCommand::class,
+                KsefTokenCommand::class,
+                KsefCheckCommand::class,
+                KsefSyncCommand::class,
+            ]);
+
+            $this->scheduleKsefSync();
 
             $this->publishes([
                 dirname(__DIR__, 2).'/config/poland.php' => config_path('poland.php'),
@@ -209,6 +234,32 @@ final class PolandServiceProvider extends ServiceProvider
                 dirname(__DIR__, 2).'/config/rates' => config_path('poland-rates'),
             ], 'poland-rates');
         }
+    }
+
+    /**
+     * Routine KSeF pull, only when the transport is enabled. Cadence is
+     * configuration (KSEF_SYNC_EVERY_MINUTES, default 120; the API's floor is
+     * 15). The cursor rule makes frequency safe: a rerun of a window yields
+     * duplicates the unique index rejects, never gaps.
+     */
+    private function scheduleKsefSync(): void
+    {
+        if (! (bool) config('poland.ksef.transport_enabled', false)
+            || (string) config('poland.ksef.transport', 'disabled') === 'disabled') {
+            return;
+        }
+
+        $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, static function ($schedule): void {
+            $minutes = max(15, (int) config('poland.ksef.sync_every_minutes', 120));
+            $event = $schedule->command('poland:ksef-sync')
+                ->withoutOverlapping()
+                ->runInBackground();
+            if ($minutes >= 60 && $minutes % 60 === 0) {
+                $event->cron(sprintf('7 */%d * * *', intdiv($minutes, 60)));
+            } else {
+                $event->cron(sprintf('*/%d * * * *', $minutes));
+            }
+        });
     }
 
     /**

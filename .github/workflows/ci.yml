@@ -120,7 +120,27 @@ jobs:
         run: |
           php artisan list | grep -q 'poland:report'
           php artisan list | grep -q 'poland:verify-rates'
+          php artisan list | grep -q 'poland:ksef-token'
+          php artisan list | grep -q 'poland:ksef-check'
+          php artisan list | grep -q 'poland:ksef-sync'
           php artisan poland:verify-rates --months=3
+
+      # Stage C: with the transport disabled (the default) both KSeF commands
+      # must REFUSE with a non-zero exit and say that this is not "no invoices".
+      - name: KSeF commands refuse when the transport is disabled
+        working-directory: foundation
+        run: |
+          set +e
+          out=$(php artisan poland:ksef-sync 2>&1); code=$?
+          set -e
+          echo "$out"
+          [ "$code" -ne 0 ] || { echo "ksef-sync must fail while disabled"; exit 1; }
+          echo "$out" | grep -Eq 'Brak profilu|NIE jest informacja o braku faktur' \
+            || { echo "refusal must name the reason"; exit 1; }
+          set +e
+          php artisan poland:ksef-check >/dev/null 2>&1; code=$?
+          set -e
+          [ "$code" -ne 0 ] || { echo "ksef-check must fail while disabled"; exit 1; }
 
       - name: Routes are registered
         working-directory: foundation

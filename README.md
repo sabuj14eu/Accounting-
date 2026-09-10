@@ -62,12 +62,13 @@ route: `docs/DEPLOYMENT.md`.
 ## The workflow being built for the shop (stage B, 2026-09-10)
 
 `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` is the design of record: supplier
-invoices arrive from KSeF (when the transport exists — it does not yet), enter
+invoices arrive from KSeF (transport built in stage C, still disabled until the live checklist passes — `docs/KSEF_GO_LIVE.md`), enter
 a **review inbox**, and on approval post purchase + VAT and, only for products
 marked as tracked, stock. Sales are entered **monthly** (shop + Glovo). Glovo is
 a settlement source reconciled with the bank. Stage B (inbox, postings,
 optional inventory, Glovo record) is built and unit-tested; the real KSeF
-transport is a separate stage.
+transport (stage C) is built against OpenAPI 2.7.1 and waits for its first
+live run.
 
 ## What it does beyond the monthly calculation
 

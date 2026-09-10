@@ -1,5 +1,78 @@
 # Changelog
 
+## 2026-09-11 (second) — stage C: real KSeF transport, behind the gate
+
+Approved separately from stage B. Written only against the current official
+specification: KSeF API 2.0, OpenAPI **2.7.1**, `CIRFMF/ksef-docs` commit
+`93b843d` (2026-08-26). **Not yet run against any KSeF environment** — that
+needs a token the owner generates and a server with network access; the
+procedure and the empty results record are in `docs/KSEF_GO_LIVE.md`.
+Defaults stay `KSEF_TRANSPORT=disabled`, `KSEF_EGRESS_ENABLED=false`.
+
+### Added
+- `Poland\Ksef\HttpKsefClient` — the `KsefClient` port implemented: token
+  authentication (`/auth/challenge` → RSA-OAEP/SHA-256 of `token|timestampMs`
+  under the published `KsefTokenEncryption` key → `/auth/ksef-token` → poll
+  `/auth/{ref}` → `/auth/token/redeem`), metadata query as **Subject2** by
+  `PermanentStorage` date with `pageOffset` paging and `isTruncated`
+  narrowing, XML fetch by KSeF number, session close. Refuses a window over
+  the API's 100-day limit, a number that fails its checksum, a response
+  missing a required field (reported `MALFORMED`, never read as empty), and
+  any scope but InvoiceRead. 429 honours `Retry-After`; 5xx/network back off;
+  authentication initiation is never retried.
+- `Poland\Ksef\Auth\TokenEncryptor` — EME-OAEP (RFC 8017) with SHA-256 and
+  MGF1-SHA-256 over PHP's raw RSA, because `openssl_public_encrypt` only
+  offers OAEP-SHA-1. The test decrypts the output with `openssl pkeyutl`.
+- `Poland\Ksef\KsefNumber` — format + CRC-8 validation; verified against
+  numbers quoted in the Ministry's documentation.
+- `Poland\Ksef\Http\{HttpTransport, CurlTransport, HttpResponse,
+  KsefTransportException}` — the one seam to the network: https only, TLS
+  verified, no redirects, explicit timeouts; exceptions carry a `kind`
+  (`network|malformed|rejected|unauthorised|rate_limited|server|auth_failed|config`),
+  the HTTP status, KSeF error codes and `traceId`, and never a credential.
+- `Poland\Ksef\KsefEndpoint` + **egress registry** `config/poland.php →
+  egress` (design §14.4): every permitted destination with purpose, data
+  sent, who authorised it and when. The client reads its base URL only from
+  there and refuses a disabled entry. `EgressPolicyTest` asserts no hostname
+  appears anywhere else in module code, and that `revealToken()` has exactly
+  one call site.
+- `Poland\Ksef\FakeKsefClient` — in-memory KSeF over the FA fixtures for
+  tests and `KSEF_TRANSPORT=fake` (production still refuses it).
+- `Poland\Ksef\GoLiveChecklist` — the production audit's 12 steps run live,
+  one verdict each: `PASS · FAIL · NOT TESTED · NOT RUNNABLE`. NOT TESTED is
+  never PASS; steps 8 and 10 can only ever be NOT TESTED live and say so.
+- `Poland\Laravel\Support\KsefClientFactory` — builds the client per
+  taxpayer from config + stored credential; refuses a token stored for a
+  different environment than the configured one.
+- Commands: `poland:ksef-token` (hidden prompt, encrypted at rest, audited
+  with a fingerprint; a **production** token is refused without
+  `--go-live-passed-on=DATE`; `--remove`), `poland:ksef-check` (the
+  checklist; exit 0 only on twelve PASS; audited as `ksef.check_run`),
+  `poland:ksef-sync` (window pull; non-zero exit when the run was not clean).
+- Scheduler entry for `poland:ksef-sync`, registered only when the transport
+  is enabled; cadence `KSEF_SYNC_EVERY_MINUTES` (default 120, floor 15).
+- `deploy/systemd/egress-allowlist.conf.example` — `IPAddressDeny=any` drop-in
+  for the accounting units, KSeF host of one environment only.
+- CI: the three commands must be registered, and with the transport disabled
+  `ksef-sync`/`ksef-check` must exit non-zero saying it is not "no invoices".
+- Audit actions `ksef.token_stored`, `ksef.token_removed`, `ksef.check_run`.
+
+### Changed
+- `KsefIngestService` takes the factory instead of a single bound client, so
+  the credential's environment and the egress registry are checked per run.
+  The `KsefClient` container binding stays `UnconfiguredKsefClient`.
+- `.env.example`: `KSEF_BASE_URL`/`KSEF_NIP`/`KSEF_TOKEN` replaced by the
+  egress keys; the token is never an env value.
+
+### Schema
+No migration. `pl_ksef_credentials` and `pl_ksef_sync_state` (2026-09-07)
+already carry what stage C needs; `cursor` now stores a small JSON
+`{"o":pageOffset,"f":narrowedFrom}`.
+
+### Tests
+421 (was 376): `HttpKsefClientTest` 27, `KsefNumberAndEncryptionTest` 8,
+`GoLiveChecklistTest` 5, `EgressPolicyTest` 5.
+
 ## 2026-09-11 — profile form, ERP menu entry, one-command updater
 
 Found on the first real deploy of stage B to the server.

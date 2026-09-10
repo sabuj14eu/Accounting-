@@ -63,8 +63,12 @@ here (PHP 8.5 + the foundation are needed) — the `laravel-integration` CI job
 and the Contabo box are where that proof comes from. Until then the migrations
 and screens are "written and linted", not "executed".
 
-Still to build: **C** real KSeF transport · **D** Glovo statement importer ·
-**E** JPK_V7 preparation · **F** trusted-supplier auto-approval.
+**Stage C is built (2026-09-11, CHANGELOG "2026-09-11 (second)")** — the
+real transport against OpenAPI 2.7.1, disabled by default, **never yet run
+against any KSeF environment**. Its live acceptance is the item below.
+
+Still to build: **D** Glovo statement importer · **E** JPK_V7 preparation ·
+**F** trusted-supplier auto-approval.
 
 Decisions the design deliberately leaves to the owner and the accountant, and
 refuses to post without:
@@ -106,17 +110,36 @@ VAT registers and document types have not been configured. The foundation itself
 now boots and migrates — see `docs/SUPPORTED_VERSIONS.md` — so this is
 configuration work, not a runtime unknown.
 
-### KSeF HTTP transport is not implemented
-`ksef.mf.gov.pl`, `ksef-test.mf.gov.pl` and every variant are refused by the
-build environment's network policy, so no client could be written against the
-real API or tested against it. Writing one from remembered documentation would
-produce something that looks finished and fails on first contact.
+### KSeF transport is built but has never touched a KSeF environment
+`HttpKsefClient` was written from the official specification (`CIRFMF/ksef-docs`
+open-api.json 2.7.1, commit `93b843d`) and is covered by 27 unit tests against
+recorded responses — but the build environment cannot reach `*.ksef.mf.gov.pl`,
+so **no request has ever been sent to KSeF.** Recorded shapes are what the
+spec says; the first live run is where the spec and the server may disagree.
 
-Everything around it IS built and executed: the FA parser, dedup, incremental
-cursor, immutable XML, encrypted InvoiceRead-only tokens, REQUIRES REVIEW
-propagation. `UnconfiguredKsefClient` refuses until a transport exists.
-**Next step: implement `KsefClient` against the current official API, verified
-at source, and test against the KSeF test environment.** See `docs/AUTOMATION.md`.
+What is needed, in order (procedure in `docs/KSEF_GO_LIVE.md`):
+1. the owner generates a **TEST** token with `InvoiceRead` only for a random
+   test NIP (the application refuses to hold the credential class that could
+   do this itself);
+2. on the server: `KSEF_TRANSPORT=real`, `KSEF_TRANSPORT_ENABLED=true`,
+   `KSEF_EGRESS_ENABLED=true` with `KSEF_EGRESS_AUTHORISED_BY/ON`, then
+   `poland:ksef-token --environment=test` and `poland:ksef-check`;
+3. the twelve verdicts pasted into `docs/KSEF_GO_LIVE.md` §4 — steps 6, 7 and
+   9 need invoices in the test inbox (more than ten for step 7); steps 8 and
+   10 can only ever be NOT TESTED live and must be accepted on unit evidence
+   explicitly;
+4. the systemd egress allowlist (`deploy/systemd/egress-allowlist.conf.example`)
+   installed with the one environment's resolved addresses.
+
+**No production token exists and none may be created until the record in
+`docs/KSEF_GO_LIVE.md` §4 says yes.** `poland:ksef-token` refuses a production
+token without `--go-live-passed-on=DATE`.
+
+**Proof required to delete this entry: a filled results block in
+`docs/KSEF_GO_LIVE.md` §4 for the TEST environment with steps 1–7, 9, 11, 12
+PASS, the audit row `ksef.check_run` with `passed`, and — for production —
+a second block against production plus a first hand-run sync compared with
+the owner's own purchase knowledge.**
 
 ### No OCR or PDF text extraction
 No `tesseract`, no `pdftotext` in the environment. `UnavailableTextExtractor`

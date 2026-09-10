@@ -1,0 +1,27 @@
+# Egress allowlist for the accounting units (design §14.4, stage C).
+#
+# Install as a drop-in for BOTH accounting-scheduler.service and
+# accounting-queue.service, and mirror it in the PHP-FPM pool's unit:
+#
+#   sudo mkdir -p /etc/systemd/system/accounting-scheduler.service.d
+#   sudo cp egress-allowlist.conf.example /etc/systemd/system/accounting-scheduler.service.d/egress.conf
+#   (same for accounting-queue.service.d)
+#   sudo systemctl daemon-reload
+#
+# Fill in the real database/Redis addresses. The KSeF lines are the RESOLVED
+# addresses of the environment in use; re-resolve them when the Ministry moves
+# hosts (getent ahosts api-test.ksef.mf.gov.pl) and keep only the environment
+# that is actually enabled — a production unit must not be able to reach TEST
+# and vice versa. Deploy-time package fetching runs outside these units.
+#
+# With this in place a library that tries to phone home fails loudly instead
+# of quietly succeeding.
+
+[Service]
+IPAddressDeny=any
+IPAddressAllow=localhost
+# database and Redis (edit)
+IPAddressAllow=127.0.0.1
+# KSeF — ONE environment only, resolved addresses (edit; example placeholders)
+# IPAddressAllow=<resolved api-test.ksef.mf.gov.pl>
+# IPAddressAllow=<resolved api.ksef.mf.gov.pl>

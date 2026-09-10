@@ -1,8 +1,10 @@
 # Accounting workflow and data model — the kebab shop
 
-**Status: design of record; stage B implemented on 2026-09-10** (see
-`docs/CHANGELOG.md`, entry "2026-09-10 (second)"). Stages C–F of section 15
-are not built. No KSeF connection or token exists. This document records the
+**Status: design of record; stage B implemented on 2026-09-10, stage C
+(real KSeF transport) implemented on 2026-09-11** (see `docs/CHANGELOG.md`).
+Stages D–F of section 15 are not built. The transport is disabled by default
+and has **not** been run against any KSeF environment; no token exists.
+`docs/KSEF_GO_LIVE.md` is the procedure and the results record. This document records the
 **change of direction** decided by the owner on 2026-09-10 and the
 architecture that follows from it; where the implementation refined a
 detail, the section says so (3.3).

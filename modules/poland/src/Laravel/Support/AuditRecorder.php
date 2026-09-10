@@ -78,6 +78,12 @@ final class AuditRecorder
 
     public const PURCHASE_SUMMARY_SUPERSEDED = 'purchases.summary_superseded';
 
+    public const KSEF_TOKEN_STORED = 'ksef.token_stored';
+
+    public const KSEF_TOKEN_REMOVED = 'ksef.token_removed';
+
+    public const KSEF_CHECK_RUN = 'ksef.check_run';
+
     /**
      * @param array<string,mixed>|null $old
      * @param array<string,mixed>|null $new

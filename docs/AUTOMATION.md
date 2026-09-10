@@ -17,7 +17,7 @@ Government PDFs ──┘                                             Payment ch
 | FA invoice XML parser | **Built, tested.** Namespace-agnostic, reads FA(1)/(2)/(3) and an unreleased schema version |
 | KSeF ingest: dedup, incremental cursor, immutable XML, REQUIRES REVIEW propagation | **Built, executed end to end** |
 | Encrypted token storage, InvoiceRead-only scope | **Built, tested** — ciphertext at rest, redacted everywhere, `InvoiceWrite` refused |
-| KSeF HTTP transport | **NOT built.** `ksef.mf.gov.pl` is unreachable from the build environment (blocked at the gateway), so no client could be written against the real API or tested against it. `UnconfiguredKsefClient` refuses until one exists |
+| KSeF HTTP transport | **Built (stage C, 2026-09-11) against OpenAPI 2.7.1; NOT yet run against any KSeF environment.** `HttpKsefClient` behind the same port; disabled by default; `poland:ksef-check` is the live acceptance test — see `docs/KSEF_GO_LIVE.md` |
 | Bank import: CSV, MT940, camt.053 | **Built, tested** against real-format fixtures, with balance reconciliation |
 | Bank import: PDF | **Refuses by design** — see below |
 | Classification and matching | **Built, tested** — 16 tests |
@@ -190,12 +190,17 @@ asserts `FilingChannel::automated()` stays false for all of them.
 
 ## Before turning KSeF on
 
-1. Implement `KsefClient` against the **current** official API. Do not write it
-   from the documentation in this repository — verify the endpoints,
-   authentication and schema versions against the Ministry's current
-   publication, as `docs/RATE_VERIFICATION.md` requires for rates.
-2. Test against the KSeF **test** environment first.
-3. Generate a token with **InvoiceRead only**.
-4. Set `KSEF_ENABLED=true` and the base URL. Never commit the token.
-5. Run one sync over a closed month and compare what arrived against what the
-   taxpayer knows they bought.
+1. ~~Implement `KsefClient` against the current official API~~ — done in
+   stage C against OpenAPI 2.7.1 (`docs/CHANGELOG.md` 2026-09-11 second).
+2. Generate a **test** token with **InvoiceRead only**, store it with
+   `poland:ksef-token --environment=test`, run `poland:ksef-check` on the
+   **test** environment and paste the twelve verdicts into
+   `docs/KSEF_GO_LIVE.md` §4.
+3. Only after that record says yes: a production token, stored with
+   `--go-live-passed-on=DATE`; `KSEF_ENVIRONMENT=production`; the systemd
+   egress allowlist; `poland:ksef-check` once more.
+4. `KSEF_TRANSPORT=real`, `KSEF_TRANSPORT_ENABLED=true`, `KSEF_EGRESS_ENABLED=true`
+   with `KSEF_EGRESS_AUTHORISED_BY/ON` filled in. Never commit the token.
+5. Run one sync over the last 45 days by hand and compare what arrived
+   against what the taxpayer knows they bought; only then leave the
+   scheduler running.

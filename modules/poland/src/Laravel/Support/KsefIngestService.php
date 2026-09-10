@@ -11,7 +11,6 @@ use Poland\Ksef\Contracts\KsefClient;
 use Poland\Ksef\KsefInvoiceMetadata;
 use Poland\Ksef\KsefSyncResult;
 use Poland\Ksef\Parsing\FaInvoiceParser;
-use Poland\Laravel\Models\KsefCredentialModel;
 use Poland\Laravel\Models\KsefDocumentModel;
 use Poland\Laravel\Models\ReportVersionModel;
 use Poland\Laravel\Models\TaxProfileModel;
@@ -31,7 +30,7 @@ use Throwable;
 final class KsefIngestService
 {
     public function __construct(
-        private readonly KsefClient $client,
+        private readonly KsefClientFactory $clients,
         private readonly FaInvoiceParser $parser,
         private readonly AuditRecorder $audit,
     ) {
@@ -39,22 +38,17 @@ final class KsefIngestService
 
     public function isAvailable(TaxProfileModel $profile): bool
     {
-        return $this->client->isConfigured() && $this->credentials($profile)?->isUsable() === true;
+        return $this->unavailableReason($profile) === null;
     }
 
-    /** Why synchronisation cannot run, in words a screen can show. */
+    /**
+     * Why synchronisation cannot run, in words a screen can show. The factory
+     * decides: transport gate, egress registry, stored credential, scope,
+     * expiry, environment match — every refusal has a sentence.
+     */
     public function unavailableReason(TaxProfileModel $profile): ?string
     {
-        if (! $this->client->isConfigured()) {
-            return 'Klient KSeF nie jest skonfigurowany (brak adresu środowiska lub implementacji transportu).';
-        }
-
-        $credentials = $this->credentials($profile);
-        if ($credentials === null) {
-            return 'Nie skonfigurowano dostępu do KSeF dla tego podatnika.';
-        }
-
-        return $credentials->unusableReason();
+        return $this->clients->unavailableReason($profile);
     }
 
     /**
@@ -75,9 +69,10 @@ final class KsefIngestService
             throw new RuntimeException($reason);
         }
 
-        $this->client->scope()->assertAllowed();
+        $client = $this->clients->forProfile($profile);
+        $client->scope()->assertAllowed();
 
-        $session = $this->client->openSession();
+        $session = $client->openSession();
 
         $imported = [];
         $duplicates = [];
@@ -89,7 +84,7 @@ final class KsefIngestService
 
         try {
             do {
-                $page = $this->client->queryInvoices($session, $from, $to, $cursor);
+                $page = $client->queryInvoices($session, $from, $to, $cursor);
 
                 foreach ($page->invoices as $metadata) {
                     if (count($imported) >= $maxInvoices) {
@@ -105,7 +100,7 @@ final class KsefIngestService
                     }
 
                     try {
-                        $document = $this->import($profile, $session, $metadata);
+                        $document = $this->import($profile, $client, $session, $metadata);
                         $imported[] = $metadata->ksefNumber;
 
                         if ($document->period !== null) {
@@ -125,7 +120,7 @@ final class KsefIngestService
             $stoppedBecause = $e->getMessage();
         } finally {
             try {
-                $this->client->closeSession($session);
+                $client->closeSession($session);
             } catch (Throwable) {
                 // Closing is best-effort; the import already happened.
             }
@@ -164,10 +159,11 @@ final class KsefIngestService
 
     private function import(
         TaxProfileModel $profile,
+        KsefClient $client,
         \Poland\Ksef\Contracts\KsefSession $session,
         KsefInvoiceMetadata $metadata,
     ): KsefDocumentModel {
-        $xml = $this->client->fetchInvoiceXml($session, $metadata->ksefNumber);
+        $xml = $client->fetchInvoiceXml($session, $metadata->ksefNumber);
         $parsed = $this->parser->parse($xml, $metadata->ksefNumber, $metadata->retrievedAt);
 
         // KSeF's own metadata wins where both have a value: it is the
@@ -464,7 +460,7 @@ final class KsefIngestService
         ?string $cursor,
         bool $completed,
     ): void {
-        $environment = $this->credentials($profile)?->environment ?? 'test';
+        $environment = $this->clients->environment()->value;
         $state = $this->state($profile);
 
         // The advance rule lives in SyncCursor so it can be tested without a
@@ -486,11 +482,4 @@ final class KsefIngestService
         );
     }
 
-    private function credentials(TaxProfileModel $profile): ?KsefCredentialModel
-    {
-        return KsefCredentialModel::query()
-            ->where('tax_profile_id', $profile->getKey())
-            ->orderByDesc('enabled')
-            ->first();
-    }
 }

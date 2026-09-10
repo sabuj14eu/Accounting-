@@ -66,6 +66,60 @@ return [
         // missed while the server was down still catches up.
         'lookback_days' => (int) env('KSEF_LOOKBACK_DAYS', 45),
         'max_invoices_per_run' => (int) env('KSEF_MAX_INVOICES_PER_RUN', 500),
+
+        /*
+         * Stage C: the real transport. Written against KSeF API 2.0, OpenAPI
+         * 2.7.1 (CIRFMF/ksef-docs). The version is pinned here AND in
+         * Poland\Ksef\HttpKsefClient::API_VERSION; `poland:ksef-check` fails
+         * when they disagree, so an upgrade is a deliberate two-place change.
+         */
+        'api_version' => '2.7.1',
+        'page_size' => (int) env('KSEF_PAGE_SIZE', 100),          // spec: 10..250
+        'max_retries' => (int) env('KSEF_MAX_RETRIES', 3),
+        'connect_timeout_seconds' => (int) env('KSEF_CONNECT_TIMEOUT', 10),
+        'timeout_seconds' => (int) env('KSEF_TIMEOUT', 60),
+        // Leave empty to use the system CA store.
+        'ca_bundle' => env('KSEF_CA_BUNDLE'),
+        // Scheduler cadence for `poland:ksef-sync`. The API's minimum cyclic
+        // interval is 15 minutes; a one-person shop needs far less.
+        'sync_every_minutes' => (int) env('KSEF_SYNC_EVERY_MINUTES', 120),
+        // KSEF_TRANSPORT=fake reads FA XML files from here (non-production only).
+        'fake_fixtures_dir' => env('KSEF_FAKE_FIXTURES_DIR') ?: dirname(__DIR__).'/tests/Fixtures',
+    ],
+
+    /*
+     * THE EGRESS REGISTRY. Every network destination this application may
+     * talk to, in one place, each with who authorised it and when. The real
+     * KSeF client reads its base URL from here and refuses if the entry is
+     * disabled; a test asserts no hostname appears anywhere else in the
+     * module. Adding a destination is a deliberate entry here — never a URL
+     * in code, never a library that phones home.
+     *
+     * Base URLs are the official ones from CIRFMF/ksef-docs/srodowiska.md
+     * (2026-03-16) and are configuration, not constants: the Ministry has
+     * moved them before.
+     */
+    'egress' => [
+        'ksef' => [
+            'enabled' => (bool) env('KSEF_EGRESS_ENABLED', false),
+            'purpose' => 'Pobieranie faktur zakupowych podatnika z KSeF (tylko odczyt, InvoiceRead).',
+            'data_sent' => 'NIP podatnika, zaszyfrowany token KSeF, zakres dat zapytania, numery KSeF pobieranych faktur. Nic więcej.',
+            'authorised_by' => env('KSEF_EGRESS_AUTHORISED_BY'),
+            'authorised_on' => env('KSEF_EGRESS_AUTHORISED_ON'),
+            'base_urls' => [
+                'test' => env('KSEF_BASE_URL_TEST', 'https://api-test.ksef.mf.gov.pl/v2'),
+                'demo' => env('KSEF_BASE_URL_DEMO', 'https://api-demo.ksef.mf.gov.pl/v2'),
+                'production' => env('KSEF_BASE_URL_PRODUCTION', 'https://api.ksef.mf.gov.pl/v2'),
+            ],
+        ],
+        'nbp' => [
+            'enabled' => (bool) env('NBP_ENABLED', false),
+            'purpose' => 'Kursy walut NBP (tabela A) do przeliczeń faktur walutowych.',
+            'data_sent' => 'Data i kod waluty. Nic więcej.',
+            'authorised_by' => env('NBP_AUTHORISED_BY'),
+            'authorised_on' => env('NBP_AUTHORISED_ON'),
+            'base_urls' => ['default' => env('NBP_BASE_URL', 'https://api.nbp.pl/api')],
+        ],
     ],
 
     'reconciliation' => [
