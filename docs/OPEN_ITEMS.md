@@ -161,6 +161,15 @@ aggregated over the quarter.
 
 ---
 
+## P2 — upstream Liberu registers a non-existent views directory
+
+`php artisan view:cache` aborts on the foundation with "The
+…/accounting-quickbooks-online-migration-livewire/src/../resources/views
+directory does not exist" (Symfony Finder). Upstream bug in a module this shop
+never uses. `bin/update-app.sh` clears the view cache and treats a failed
+precompile as a warning; views compile on demand. Report upstream or disable
+the module in the module manager when the foundation is next upgraded.
+
 ## P2 — known limitations, acceptable for now
 
 ### Suspension and sickness do not shorten a month

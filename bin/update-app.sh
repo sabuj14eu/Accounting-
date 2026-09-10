@@ -75,7 +75,15 @@ step "6/7  Cache i restart"
 ( cd "$FOUNDATION" \
     && as_app "$PHP_BIN" artisan config:cache \
     && as_app "$PHP_BIN" artisan route:cache \
-    && as_app "$PHP_BIN" artisan view:cache )
+    && as_app "$PHP_BIN" artisan view:clear )
+# Precompiling views is an optimisation, not a requirement: Blade compiles on
+# demand. Upstream Liberu registers at least one view path that does not exist
+# (accounting-quickbooks-online-migration-livewire), which makes view:cache
+# abort. Clearing above already removed stale compiled views; a failed
+# precompile is reported and the update continues.
+( cd "$FOUNDATION" && as_app "$PHP_BIN" artisan view:cache >/dev/null 2>&1 ) \
+    && info "widoki prekompilowane" \
+    || info "view:cache pominięte (błąd modułu Liberu — widoki kompilują się na żądanie)"
 systemctl restart php8.5-fpm accounting-queue.service
 info "php-fpm i kolejka zrestartowane"
 
