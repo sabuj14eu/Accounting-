@@ -29,7 +29,12 @@ final class PolandServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(dirname(__DIR__, 2).'/config/poland.php', 'poland');
 
         $this->app->singleton(RateRepository::class, function ($app): RateRepository {
-            $directory = (string) config('poland.rates_path', dirname(__DIR__, 2).'/config/rates');
+            // An EMPTY configured path (POLAND_RATES_PATH= in .env) means the
+            // module's own tables, never a blank directory.
+            $directory = (string) config('poland.rates_path', '');
+            if (trim($directory) === '') {
+                $directory = dirname(__DIR__, 2).'/config/rates';
+            }
 
             return new RateRepository($directory);
         });

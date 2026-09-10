@@ -11,7 +11,11 @@ return [
      * to be updated between releases of this module. Updating rates must never
      * require editing code.
      */
-    'rates_path' => env('POLAND_RATES_PATH', dirname(__DIR__).'/config/rates'),
+    // `?:` rather than a default argument: .env.example ships the key EMPTY
+    // (POLAND_RATES_PATH=), and env() returns '' for an empty value, which the
+    // repository then reports as "Rate directory not found: ". Empty means
+    // "use the module's own tables".
+    'rates_path' => env('POLAND_RATES_PATH') ?: dirname(__DIR__).'/config/rates',
 
     /*
      * Refuse to settle a month using rate tables that have not been verified

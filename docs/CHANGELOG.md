@@ -3,6 +3,11 @@
 ## 2026-09-10 (third) — installer fix found by CI
 
 ### Fixed
+- `POLAND_RATES_PATH=` (empty, as `.env.example` ships it) resolved to a blank
+  rate directory and every artisan command died with "Rate directory not
+  found:". Found by the CI integration job once the installer got past
+  composer. Empty now means the module's own tables, in both `config/poland.php`
+  and the provider.
 - `bin/install-foundation.sh`: the foundation ships a `composer.lock`, and after
   the module is added to `composer.json`, `composer install` exits 4 ("required
   package is not present in the lock file"). The `laravel-integration` CI job
