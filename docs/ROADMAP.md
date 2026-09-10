@@ -1,5 +1,13 @@
 # Roadmap
 
+> **Direction change, 2026-09-10.** The owner's real workflow is now the
+> binding design: `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md`. Phases 2–5
+> below stay as the reference for the tax engine, KSeF adapter, JPK and
+> automation, but their sequencing is superseded by that document's stages
+> B–F (review inbox and postings → real KSeF transport → Glovo importer →
+> JPK_V7 preparation → trusted-supplier auto-approval). The daily-grain
+> sales proposal is cancelled; sales stay monthly.
+
 Phase 1 is built. Everything below it is specified and not built. Nothing in a
 later phase is half-implemented, because a half-built KSeF client that looks
 present is worse than none.

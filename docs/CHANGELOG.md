@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-09-10 — direction change: automatic invoices, optional inventory, monthly sales (design only)
+
+No code, schema, route, view or configuration changed. One document added.
+
+### Added
+- `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` — the owner's real workflow for
+  the kebab shop and the architecture that follows from it: supplier invoices
+  arrive automatically from KSeF (when the authorised transport exists and is
+  enabled), go through a review inbox, and on approval post purchase + VAT and,
+  only for products explicitly marked as tracked, stock movements; sales are
+  entered monthly (shop + Glovo); Glovo is an accounting settlement source
+  reconciled with the bank; VAT → JPK_V7 → PIT → ZUS → monthly report. Includes
+  the privacy audit of this repository and of the pinned Liberu foundation, the
+  staged migration plan, the required tests, and what exists / is missing /
+  depends on the real KSeF transport.
+
+### Cancelled
+- The earlier proposal for a mandatory daily-sales schema. Nothing keyed by day
+  will be built; the monthly `pl_sales_reports` model stays and gains a channel.
+
+### Known
+- KSeF HTTP transport still not implemented; the design is built so everything
+  else can be developed and tested with fixtures before it exists.
+- Two accountant decisions the model refuses to guess: Glovo VAT treatment
+  (domestic invoice vs import of services) and the JPK document type for Glovo
+  orders.
+
 ## 2026-09-07 (seventh) — Shop Profit Intelligence, the analysis core
 
 A **second, separate application** in `shop-intelligence/`: a management

@@ -50,6 +50,30 @@ real filing from cash-register data alone. Phase 2 (KPiR) closes it.
 
 ---
 
+## P1 — the redesigned accounting workflow (design accepted 2026-09-10, nothing built)
+
+`docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` is the binding design: automatic
+KSeF incoming invoices → review → approval → purchase/VAT posting → optional
+per-product inventory; monthly sales (shop + Glovo); Glovo as a settlement
+source; VAT → JPK_V7 → PIT → ZUS. Stages B–F in its section 15 are each a
+separate approval. Until stage B ships, the application still takes monthly
+purchase totals by hand and shows KSeF as NOT CONNECTED.
+
+Decisions the design deliberately leaves to the owner and the accountant, and
+refuses to post without:
+- **Glovo VAT treatment** for this contract — domestic commission invoice or
+  import of services (`vat_treatment`, section 7.2).
+- **JPK document type for Glovo orders** — through the register as RO or a
+  separate summary (section 10).
+- **Is the shop a registered VAT payer or exempt under art. 113?** The profile
+  decides; the design assumes registered for its worked example only.
+- Foundation hardening on the box per section 14.3–14.5 (Telescope off, unused
+  modules disabled, no third-party keys, CSP header) — verified on the server,
+  not from a clone.
+
+**Proof required to delete this entry: stage B merged with its tests green,
+and the four decisions above recorded in the profile and the audit trail.**
+
 ## P1 — needed for a complete Phase 1
 
 ### Polish chart of accounts and company defaults not configured
