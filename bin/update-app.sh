@@ -31,7 +31,10 @@ die()  { printf '\n\033[1;31mBŁĄD: %s\033[0m\n\n' "$*" >&2; exit 1; }
 
 as_app() { sudo -u "$APP_USER" env PATH="$PATH" "$@"; }
 
-BRANCH="${1:-$(as_app git -C "$APP" rev-parse --abbrev-ref HEAD)}"
+# A branch name copied from a chat or a terminal sometimes arrives with a stray
+# trailing character ("…e4kklt#"). Keep only what a git ref can contain.
+BRANCH="$(printf '%s' "${1:-$(as_app git -C "$APP" rev-parse --abbrev-ref HEAD)}" | tr -cd 'A-Za-z0-9._/-')"
+[ -n "$BRANCH" ] || die "Pusta nazwa gałęzi."
 BEFORE="$(as_app git -C "$APP" rev-parse --short HEAD)"
 
 # ---------------------------------------------------------------------------
