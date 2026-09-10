@@ -15,4 +15,5 @@
     <a href="{{ route('poland.inbox') }}" class="{{ $active === 'inbox' ? 'on' : '' }}">Faktury do przeglądu @if($inboxCount > 0)<span class="count">{{ $inboxCount }}</span>@endif</a>
     <a href="{{ route('poland.platforms') }}" class="{{ $active === 'platforms' ? 'on' : '' }}">Glovo / platformy</a>
     <a href="{{ route('poland.products') }}" class="{{ $active === 'products' ? 'on' : '' }}">Produkty i magazyn</a>
+    <a href="{{ url('/app') }}" style="margin-left:auto">ERP (Liberu) →</a>
 </nav>

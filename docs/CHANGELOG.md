@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-11 — profile form, ERP menu entry, one-command updater
+
+Found on the first real deploy of stage B to the server.
+
+### Added
+- **Taxpayer profile from the dashboard** (`POST /poland/profil`). Until now a
+  profile could only be created from the command line, so a fresh install
+  showed "No taxpayer profile" with no way forward. The form offers exactly the
+  engine's enums, validates through `ProfileFactory` before storing, and
+  audits every change with old → new (`profile.changed`). One profile per
+  shop; the form edits it, it never creates a second.
+- **ERP menu entries.** The accounting screens live at `/poland` on the same
+  host and login but were invisible from the Liberu panel. The provider now
+  registers four navigation items under "Tax & Compliance" on Filament's
+  serving hook, guarded so a missing or changed Filament API degrades to "no
+  menu entry", never to a broken boot. The module's pages link back to `/app`.
+- `bin/update-app.sh` — one command to update the installed application in the
+  deploy-ceremony order: verified backup → code → isolation check → module
+  tests → migrate → caches → restart → verify. Stops at the first failure.
+
+### Known — server-only files
+Two Filament pages named `PolandKsef.php` existed only on the server (never
+committed) and referenced a class that no longer exists; they broke package
+discovery. They were parked under `/srv/accounting/backups/server-only-files/`.
+Nothing in the repository depends on them.
+
 ## 2026-09-10 (third) — installer fix found by CI
 
 ### Fixed

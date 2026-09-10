@@ -108,7 +108,14 @@ that shows up only under load, which is the worst time to discover it.
 
 ## Deploy ceremony
 
-Backup → migrate → restart → verify. In that order, every time.
+Backup → migrate → restart → verify. In that order, every time. One command
+does the whole ceremony and stops at the first failure:
+
+```bash
+sudo bash /srv/accounting/app/bin/update-app.sh claude/determined-newton-e4kklt
+```
+
+By hand, the same steps:
 
 ```bash
 deploy/backup.sh                                  # backs up AND verifies the restore

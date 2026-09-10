@@ -189,6 +189,8 @@ final class PolandServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->registerErpNavigation();
+
         $this->loadMigrationsFrom(dirname(__DIR__, 2).'/database/migrations');
         $this->loadViewsFrom(dirname(__DIR__, 2).'/resources/views', 'poland');
 
@@ -206,6 +208,52 @@ final class PolandServiceProvider extends ServiceProvider
             $this->publishes([
                 dirname(__DIR__, 2).'/config/rates' => config_path('poland-rates'),
             ], 'poland-rates');
+        }
+    }
+
+    /**
+     * Put the accounting screens into the ERP's own menu.
+     *
+     * The module's pages live at /poland on the same host and behind the same
+     * login; without an entry in the Filament panel they look like a separate
+     * site. Registered on the "serving" hook so it works for every panel the
+     * foundation defines, and guarded so a foundation without Filament (or a
+     * future Filament that changes this API) degrades to "no menu entry",
+     * never to a broken application.
+     */
+    private function registerErpNavigation(): void
+    {
+        if (! class_exists(\Filament\Facades\Filament::class) || ! class_exists(\Filament\Navigation\NavigationItem::class)) {
+            return;
+        }
+
+        try {
+            \Filament\Facades\Filament::serving(static function (): void {
+                try {
+                    $panel = \Filament\Facades\Filament::getCurrentPanel();
+                    if ($panel === null) {
+                        return;
+                    }
+
+                    $prefix = '/'.trim((string) config('poland.routes.prefix', 'poland'), '/');
+                    $group = 'Tax & Compliance';
+
+                    $panel->navigationItems([
+                        \Filament\Navigation\NavigationItem::make('Księgowość PL — co muszę zapłacić')
+                            ->url(url($prefix))->icon('heroicon-o-banknotes')->group($group)->sort(1),
+                        \Filament\Navigation\NavigationItem::make('Faktury do przeglądu (KSeF)')
+                            ->url(url($prefix.'/skrzynka'))->icon('heroicon-o-inbox-arrow-down')->group($group)->sort(2),
+                        \Filament\Navigation\NavigationItem::make('Glovo / platformy')
+                            ->url(url($prefix.'/platformy'))->icon('heroicon-o-truck')->group($group)->sort(3),
+                        \Filament\Navigation\NavigationItem::make('Produkty i magazyn')
+                            ->url(url($prefix.'/produkty'))->icon('heroicon-o-cube')->group($group)->sort(4),
+                    ]);
+                } catch (\Throwable) {
+                    // A menu entry is a convenience; the module's own routes still work.
+                }
+            });
+        } catch (\Throwable) {
+            // Same: never let navigation registration break boot.
         }
     }
 }

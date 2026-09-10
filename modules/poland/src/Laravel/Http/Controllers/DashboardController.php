@@ -116,6 +116,81 @@ final class DashboardController
             ->with('status', 'Zapisano sprzedaż za '.$validated['period'].'.');
     }
 
+    /**
+     * Create or change the taxpayer profile from the dashboard.
+     *
+     * Every field here changes the tax owed, so the row is validated through
+     * the same ProfileFactory the engine uses, and every change is audited
+     * with old → new. There is exactly one profile for this shop; a second one
+     * is not created by this form.
+     */
+    public function storeProfile(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:200'],
+            'nip' => ['nullable', 'string', 'max:20'],
+            'pit_regime' => ['required', Rule::in(array_map(static fn ($c): string => $c->value, \Poland\Domain\Enums\PitRegime::cases()))],
+            'lump_sum_rate' => ['nullable', 'string', 'max:10'],
+            'vat_status' => ['required', Rule::in(array_map(static fn ($c): string => $c->value, \Poland\Domain\Enums\VatStatus::cases()))],
+            'vat_settlement' => ['required', Rule::in(array_map(static fn ($c): string => $c->value, \Poland\Domain\Enums\VatSettlementFrequency::cases()))],
+            'zus_scheme' => ['required', Rule::in(array_map(static fn ($c): string => $c->value, \Poland\Domain\Enums\ZusScheme::cases()))],
+            'sickness_insurance' => ['nullable', 'boolean'],
+            'maly_zus_plus_base' => ['nullable', 'string', 'max:32'],
+            'business_started_at' => ['required', 'regex:/^\d{4}-\d{2}$/'],
+            'business_started_on_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'deduction_basis' => ['required', Rule::in(array_map(static fn ($c): string => $c->value, \Poland\Domain\Enums\ContributionDeductionBasis::cases()))],
+            'reduce_health_band_by_social' => ['nullable', 'boolean'],
+        ]);
+
+        // Percent as typed ("3" or "3,5") → decimal fraction the engine uses.
+        $lumpSumRate = null;
+        if (isset($validated['lump_sum_rate']) && trim((string) $validated['lump_sum_rate']) !== '') {
+            $lumpSumRate = round(((float) str_replace(',', '.', (string) $validated['lump_sum_rate'])) / 100, 4);
+        }
+
+        $attributes = [
+            'name' => trim($validated['name']),
+            'nip' => isset($validated['nip']) && trim((string) $validated['nip']) !== '' ? preg_replace('/\D/', '', (string) $validated['nip']) : null,
+            'pit_regime' => $validated['pit_regime'],
+            'lump_sum_rate' => $lumpSumRate,
+            'vat_status' => $validated['vat_status'],
+            'vat_settlement' => $validated['vat_settlement'],
+            'zus_scheme' => $validated['zus_scheme'],
+            'sickness_insurance' => (bool) ($validated['sickness_insurance'] ?? true),
+            'maly_zus_plus_base' => isset($validated['maly_zus_plus_base']) && trim((string) $validated['maly_zus_plus_base']) !== ''
+                ? Money::parse($validated['maly_zus_plus_base'])->jsonSerialize()
+                : null,
+            'business_started_at' => $validated['business_started_at'],
+            'business_started_on_day' => (int) ($validated['business_started_on_day'] ?? 1),
+            'deduction_basis' => $validated['deduction_basis'],
+            'reduce_health_band_by_social' => (bool) ($validated['reduce_health_band_by_social'] ?? true),
+        ];
+
+        // Validate exactly as the engine will read it, before anything is stored.
+        try {
+            \Poland\Support\ProfileFactory::fromArray(array_filter($attributes, static fn ($v): bool => $v !== null));
+        } catch (\Throwable $e) {
+            return redirect()->route('poland.dashboard')->withErrors(['profile' => $e->getMessage()])->withInput();
+        }
+
+        $existing = $this->profileFor($request);
+        $audit = app(\Poland\Laravel\Support\AuditRecorder::class);
+
+        if ($existing === null) {
+            $profile = TaxProfileModel::create($attributes);
+            $audit->record(\Poland\Laravel\Support\AuditRecorder::PROFILE_CHANGED, (int) $profile->getKey(), $profile, null, null, $attributes);
+            $message = 'Utworzono profil podatnika. Możesz teraz zapisać sprzedaż za miesiąc.';
+        } else {
+            $old = $existing->only(array_keys($attributes));
+            $existing->forceFill($attributes)->save();
+            $profile = $existing;
+            $audit->record(\Poland\Laravel\Support\AuditRecorder::PROFILE_CHANGED, (int) $profile->getKey(), $profile, null, $old, $attributes);
+            $message = 'Zmieniono profil podatnika. Każda zmiana wpływa na wyliczenia — została zapisana w dzienniku.';
+        }
+
+        return redirect()->route('poland.dashboard')->with('status', $message);
+    }
+
     /** Record the month's deductible costs and input VAT. */
     public function storeCosts(Request $request): RedirectResponse
     {

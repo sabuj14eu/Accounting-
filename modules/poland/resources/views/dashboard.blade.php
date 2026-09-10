@@ -280,6 +280,73 @@
         </div>
     @endif
 
+    {{-- The taxpayer profile: required before anything can be recorded. --}}
+    @php
+        $pf = $profile;
+        $pitRegimes = \Poland\Domain\Enums\PitRegime::cases();
+        $vatStatuses = \Poland\Domain\Enums\VatStatus::cases();
+        $zusSchemes = \Poland\Domain\Enums\ZusScheme::cases();
+        $vatFrequencies = \Poland\Domain\Enums\VatSettlementFrequency::cases();
+        $deductionBases = \Poland\Domain\Enums\ContributionDeductionBasis::cases();
+        $lumpPercent = old('lump_sum_rate', $pf?->lump_sum_rate !== null ? rtrim(rtrim(number_format(((float) $pf->lump_sum_rate) * 100, 2, ',', ''), '0'), ',') : '');
+    @endphp
+    @if ($pf === null)
+        <div class="card">
+            <h2>Najpierw: profil podatnika</h2>
+            <div class="warn">Bez profilu nic nie da się zapisać ani wyliczyć. Każde pole poniżej zmienia podatek — jeśli nie jesteś pewien, zapytaj księgowego. Silnik nie zakłada niczego.</div>
+    @else
+        <details class="card">
+            <summary>Profil podatnika: {{ $pf->name }} · {{ \Poland\Domain\Enums\PitRegime::from($pf->pit_regime)->label() }} · {{ \Poland\Domain\Enums\VatStatus::from($pf->vat_status)->label() }} · {{ \Poland\Domain\Enums\ZusScheme::from($pf->zus_scheme)->label() }} (kliknij, aby zmienić)</summary>
+            <div class="warn" style="margin-top:12px">Zmiana profilu zmienia wyliczenia wszystkich miesięcy. Każda zmiana jest zapisywana w dzienniku z wartościami przed i po.</div>
+    @endif
+        <form method="POST" action="{{ route('poland.profile.store') }}" class="inline" style="margin-top:12px">
+            @csrf
+            <div><label for="p_name">Nazwa (jak w CEIDG)</label><input type="text" id="p_name" name="name" required maxlength="200" value="{{ old('name', $pf?->name) }}" placeholder="Jan Kowalski — Kebab"></div>
+            <div><label for="p_nip">NIP</label><input type="text" id="p_nip" name="nip" maxlength="20" value="{{ old('nip', $pf?->nip) }}" placeholder="5260250274"></div>
+            <div>
+                <label for="p_pit">Forma opodatkowania (PIT)</label>
+                <select id="p_pit" name="pit_regime">
+                    @foreach ($pitRegimes as $c)<option value="{{ $c->value }}" {{ old('pit_regime', $pf?->pit_regime) === $c->value ? 'selected' : '' }}>{{ $c->label() }}</option>@endforeach
+                </select>
+            </div>
+            <div><label for="p_lump">Stawka ryczałtu (%) — tylko dla ryczałtu; decyzja z księgowym</label><input type="text" id="p_lump" name="lump_sum_rate" inputmode="decimal" value="{{ $lumpPercent }}" placeholder="np. 3" style="width:7em"></div>
+            <div>
+                <label for="p_vat">Status VAT</label>
+                <select id="p_vat" name="vat_status">
+                    @foreach ($vatStatuses as $c)<option value="{{ $c->value }}" {{ old('vat_status', $pf?->vat_status) === $c->value ? 'selected' : '' }}>{{ $c->label() }}</option>@endforeach
+                </select>
+            </div>
+            <div>
+                <label for="p_vatf">Rozliczenie VAT</label>
+                <select id="p_vatf" name="vat_settlement">
+                    @foreach ($vatFrequencies as $c)<option value="{{ $c->value }}" {{ old('vat_settlement', $pf?->vat_settlement ?? 'monthly') === $c->value ? 'selected' : '' }}>{{ $c->label() }}</option>@endforeach
+                </select>
+            </div>
+            <div>
+                <label for="p_zus">Schemat ZUS</label>
+                <select id="p_zus" name="zus_scheme">
+                    @foreach ($zusSchemes as $c)<option value="{{ $c->value }}" {{ old('zus_scheme', $pf?->zus_scheme) === $c->value ? 'selected' : '' }}>{{ $c->label() }}</option>@endforeach
+                </select>
+            </div>
+            <div><label for="p_mzp">Podstawa Mały ZUS Plus (tylko dla tego schematu)</label><input type="text" id="p_mzp" name="maly_zus_plus_base" inputmode="decimal" value="{{ old('maly_zus_plus_base', $pf?->maly_zus_plus_base) }}" style="width:9em"></div>
+            <div><label for="p_sick">Dobrowolne chorobowe</label><select id="p_sick" name="sickness_insurance"><option value="1" {{ (string) old('sickness_insurance', $pf === null ? '1' : ($pf->sickness_insurance ? '1' : '0')) === '1' ? 'selected' : '' }}>tak</option><option value="0" {{ (string) old('sickness_insurance', $pf === null ? '1' : ($pf->sickness_insurance ? '1' : '0')) === '0' ? 'selected' : '' }}>nie</option></select></div>
+            <div><label for="p_start">Początek działalności (miesiąc)</label><input type="month" id="p_start" name="business_started_at" required value="{{ old('business_started_at', $pf?->business_started_at) }}"></div>
+            <div><label for="p_startday">Dzień miesiąca</label><input type="number" id="p_startday" name="business_started_on_day" min="1" max="31" value="{{ old('business_started_on_day', $pf?->business_started_on_day ?? 1) }}" style="width:5em"></div>
+            <div>
+                <label for="p_ded">Podstawa odliczenia składek</label>
+                <select id="p_ded" name="deduction_basis">
+                    @foreach ($deductionBases as $c)<option value="{{ $c->value }}" {{ old('deduction_basis', $pf?->deduction_basis ?? 'accrued_for_month') === $c->value ? 'selected' : '' }}>{{ $c->label() }}</option>@endforeach
+                </select>
+            </div>
+            <div><label for="p_rhb">Pomniejszać próg zdrowotnej o składki społeczne (ryczałt)</label><select id="p_rhb" name="reduce_health_band_by_social"><option value="1" {{ (string) old('reduce_health_band_by_social', $pf === null ? '1' : ($pf->reduce_health_band_by_social ? '1' : '0')) === '1' ? 'selected' : '' }}>tak</option><option value="0" {{ (string) old('reduce_health_band_by_social', $pf === null ? '1' : ($pf->reduce_health_band_by_social ? '1' : '0')) === '0' ? 'selected' : '' }}>nie</option></select></div>
+            <button type="submit">{{ $pf === null ? 'Utwórz profil' : 'Zapisz zmiany profilu' }}</button>
+        </form>
+    @if ($pf === null)
+        </div>
+    @else
+        </details>
+    @endif
+
     {{-- Data entry --}}
     <div class="card">
         <h2>Wprowadź dane</h2>

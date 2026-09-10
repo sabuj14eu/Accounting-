@@ -20,6 +20,7 @@ Route::middleware((array) config('poland.routes.middleware', ['web', 'auth']))
         Route::get('/', [DashboardController::class, 'show'])->name('dashboard');
         Route::post('/sprzedaz', [DashboardController::class, 'storeSales'])->name('sales.store');
         Route::post('/koszty', [DashboardController::class, 'storeCosts'])->name('costs.store');
+        Route::post('/profil', [DashboardController::class, 'storeProfile'])->name('profile.store');
 
         Route::get('/raport/{period}', [ReportController::class, 'show'])
             ->where('period', '\d{4}-\d{2}')->name('report');
