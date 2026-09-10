@@ -49,7 +49,7 @@ Inside the ERP the same engine backs a web dashboard
 One command on a fresh Ubuntu/Debian server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sabuj14eu/Accounting-/claude/poland-accounting-app-pijnfm/bin/deploy-contabo.sh \
+curl -fsSL https://raw.githubusercontent.com/sabuj14eu/Accounting-/claude/determined-newton-e4kklt/bin/deploy-contabo.sh \
   | sudo DOMAIN=account.signalmesh.dev bash
 ```
 

@@ -83,6 +83,21 @@ inbox → approve → posting → stock flow executed on a real database (CI job
 the box), stages C–F each shipped or explicitly cancelled, and the four
 decisions above recorded in the profile and the audit trail.**
 
+## P1 — the rate tables end in January 2027 (CI `rate-coverage` is RED, correctly)
+
+`zus_social` covers through 2027-01 and `zus_health` through 2027-01; the CI job
+looks six months ahead and, from September 2026, reaches February 2027 and
+fails. **This is the check working, not a defect in the check.** The 2027
+figures (minimum wage set by regulation in September 2026; the forecast average
+wage in the 2027 budget act; the resulting preferential and full bases and the
+health bands) must be read from the issuing authorities by a human with network
+access and entered as new versions with provenance, exactly as
+`docs/RATE_VERIFICATION.md` requires. Nothing here extrapolates 2026 into 2027.
+
+**Owner: the taxpayer's accountant. Proof required: 2027 versions in
+`config/rates/zus_social.php` and `zus_health.php` with sources, the CI job
+green, and this entry deleted.**
+
 ## P1 — needed for a complete Phase 1
 
 ### Polish chart of accounts and company defaults not configured

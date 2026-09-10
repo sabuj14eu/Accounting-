@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-10 (third) — installer fix found by CI
+
+### Fixed
+- `bin/install-foundation.sh`: the foundation ships a `composer.lock`, and after
+  the module is added to `composer.json`, `composer install` exits 4 ("required
+  package is not present in the lock file"). The `laravel-integration` CI job
+  had been failing at that step on every push of this branch, including the
+  docs-only one. The installer now runs a partial `composer update` for the
+  path package alone, which keeps every upstream pin from the lock.
+- `bin/deploy-contabo.sh` and the README now default to this branch.
+
+### Known — recorded in OPEN_ITEMS
+- CI `rate-coverage` is red because the ZUS tables end in January 2027 and the
+  check now looks into February 2027. Needs official 2027 figures; not
+  extrapolated.
+
 ## 2026-09-10 (second) — Stage B: review inbox, postings, optional inventory, Glovo settlement
 
 Implements stage B of `docs/ACCOUNTING_WORKFLOW_AND_DATA_MODEL.md` (section 15).

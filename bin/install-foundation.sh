@@ -91,7 +91,16 @@ file_put_contents(
 
 # --- Install ----------------------------------------------------------------
 say "composer install (to potrwa — foundation ma ~670 pakietow)"
-( cd "$TARGET" && composer install --no-interaction --prefer-dist --no-dev )
+# The foundation ships a composer.lock, and we have just added a package to its
+# composer.json. `composer install` refuses that combination ("required package
+# is not present in the lock file", exit 4). A PARTIAL update resolves only our
+# path package into the lock and installs everything else exactly as locked, so
+# upstream's pins are untouched and the install is still reproducible.
+if [ -f "$TARGET/composer.lock" ] && ! grep -q '"name": "signalmesh/poland-accounting"' "$TARGET/composer.lock"; then
+    ( cd "$TARGET" && composer update signalmesh/poland-accounting --no-interaction --prefer-dist --no-dev )
+else
+    ( cd "$TARGET" && composer install --no-interaction --prefer-dist --no-dev )
+fi
 
 # Laravel discovers a package's service provider from a Composer script. Skipping
 # scripts installs the module and silently never registers it: no commands, no

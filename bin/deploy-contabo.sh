@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 DOMAIN="${DOMAIN:-account.signalmesh.dev}"
 REPO="${REPO:-https://github.com/sabuj14eu/Accounting-}"
-BRANCH="${BRANCH:-claude/poland-accounting-app-pijnfm}"
+BRANCH="${BRANCH:-claude/determined-newton-e4kklt}"
 APP_USER="${APP_USER:-accounting}"
 APP_ROOT="${APP_ROOT:-/srv/accounting}"
 DB_NAME="${DB_NAME:-accounting}"
