@@ -3,6 +3,10 @@
 ## 2026-09-10 (third) — installer fix found by CI
 
 ### Fixed
+- `deploy/backup.sh` restored into `<db>_restore_check`, a database the
+  accounting user was never granted; the installer and the drill use
+  `<db>_drill`. First real backup on the box failed with "Access denied".
+  The backup now verifies in the granted `_drill` namespace.
 - `POLAND_RATES_PATH=` (empty, as `.env.example` ships it) resolved to a blank
   rate directory and every artisan command died with "Rate directory not
   found:". Found by the CI integration job once the installer got past

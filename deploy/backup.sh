@@ -27,7 +27,10 @@ mysqldump --host="$DB_HOST" --user="$DB_USERNAME" --password="$DB_PASSWORD" \
     "$DB_DATABASE" | gzip > "$DUMP"
 
 echo "==> Weryfikacja przez odtworzenie do bazy tymczasowej"
-VERIFY_DB="${DB_DATABASE}_restore_check"
+# The scratch namespace the installer grants to the least-privilege accounting
+# user (deploy-contabo.sh: GRANT ... ON `<db>_drill`.*). The drill uses the same
+# name. A different name here meant "Access denied" on the first real backup.
+VERIFY_DB="${VERIFY_DB:-${DB_DATABASE}_drill}"
 mysql --host="$DB_HOST" --user="$DB_USERNAME" --password="$DB_PASSWORD" \
     -e "DROP DATABASE IF EXISTS \`$VERIFY_DB\`; CREATE DATABASE \`$VERIFY_DB\`;"
 gunzip -c "$DUMP" | mysql --host="$DB_HOST" --user="$DB_USERNAME" --password="$DB_PASSWORD" "$VERIFY_DB"
